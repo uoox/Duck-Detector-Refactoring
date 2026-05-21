@@ -168,7 +168,12 @@ fun DuckDetectorApp() {
             value = currentPrefs
         }
     }
-    val agreementAccepted = agreementPrefs?.accepted == true
+    val agreementAccepted = true
+    LaunchedEffect(agreementPrefs) {
+        if (agreementPrefs?.accepted == false) {
+            agreementStore.accept()
+        }
+    }
     val teePrefs by produceState<TeeNetworkPrefs?>(
         initialValue = null,
         key1 = consentStore,

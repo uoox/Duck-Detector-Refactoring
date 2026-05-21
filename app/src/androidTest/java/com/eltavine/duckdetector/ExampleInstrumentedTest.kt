@@ -35,6 +35,6 @@ class ExampleInstrumentedTest {
     fun useAppContext() {
         // Context of the app under test.
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("com.eltavine.duckdetector", appContext.packageName)
+        assertEquals("com.uoox.duckdetector", appContext.packageName)
     }
 }
