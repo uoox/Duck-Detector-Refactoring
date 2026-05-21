@@ -156,34 +156,34 @@ jobs:
              | tr -d '[:space:]:' \
              | tr '[:upper:]' '[:lower:]')
 
-           owner_line=$(printf '%s\n' "${keytool_output}" \
-             | sed -n 's/^Owner: //p' \
-             | head -n 1)
+          owner_line=$(printf '%s\n' "${keytool_output}" \
+            | sed -n 's/^Owner: //p' \
+            | head -n 1)
 
-           signer_name=$(OWNER_LINE="${owner_line}" python3 - <<'PY'
-           import os
-           import re
+          signer_name=$(OWNER_LINE="${owner_line}" python3 - <<'PY'
+          import os
+          import re
 
-           owner = os.environ.get("OWNER_LINE", "").strip()
-           if not owner:
-               print("Unknown signer", end="")
-               raise SystemExit(0)
+          owner = os.environ.get("OWNER_LINE", "").strip()
+          if not owner:
+              print("Unknown signer", end="")
+              raise SystemExit(0)
 
-           match = re.search(r"(?:^|,\s*)CN=([^,]+)", owner)
-           if match:
-               print(match.group(1).strip(), end="")
-           else:
-               print(owner, end="")
-           PY
-           )
+          match = re.search(r"(?:^|,\s*)CN=([^,]+)", owner)
+          if match:
+              print(match.group(1).strip(), end="")
+          else:
+              print(owner, end="")
+          PY
+          )
 
-           if [ -z "${expected_sha256}" ]; then
-             echo "Failed to extract SHA-256 fingerprint from the configured keystore." >&2
-             exit 1
-           fi
+          if [ -z "${expected_sha256}" ]; then
+            echo "Failed to extract SHA-256 fingerprint from the configured keystore." >&2
+            exit 1
+          fi
 
-           echo "sha256=${expected_sha256}" >> "$GITHUB_OUTPUT"
-           echo "signer_name=${signer_name}" >> "$GITHUB_OUTPUT"
+          echo "sha256=${expected_sha256}" >> "$GITHUB_OUTPUT"
+          echo "signer_name=${signer_name}" >> "$GITHUB_OUTPUT"
 
       - name: Build release APK
         id: build
