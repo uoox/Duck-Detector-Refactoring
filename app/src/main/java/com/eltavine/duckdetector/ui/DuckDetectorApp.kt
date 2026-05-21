@@ -297,11 +297,11 @@ fun DuckDetectorApp() {
 
     Surface {
         Box(modifier = Modifier.fillMaxSize()) {
-            ScreenCaptureNoticeEffect(
-                onScreenCaptured = {
-                    screenCaptureNoticeEventId += 1L
-                },
-            )
+            // ScreenCaptureNoticeEffect(
+            //     onScreenCaptured = {
+            //         screenCaptureNoticeEventId += 1L
+            //     },
+            // )
 
             when {
                 agreementPrefs == null -> {
@@ -390,30 +390,30 @@ fun DuckDetectorApp() {
                 }
             }
 
-            ScreenshotWatermarkOverlay()
+            // ScreenshotWatermarkOverlay()
 
-            if (agreementAccepted && startupPoliciesReady) {
-                AlphaBuildBanner()
-            }
+            // if (agreementAccepted && startupPoliciesReady) {
+            //     AlphaBuildBanner()
+            // }
 
-            AlphaBuildWarningOverlay(
-                forceVisible = agreementAccepted &&
-                        startupPoliciesReady &&
-                        requiresAlphaAcknowledgement &&
-                        !alphaAcknowledged,
-                onDismissed = {
-                    alphaAcknowledged = true
-                },
-            )
+            // AlphaBuildWarningOverlay(
+            //     forceVisible = agreementAccepted &&
+            //             startupPoliciesReady &&
+            //             requiresAlphaAcknowledgement &&
+            //             !alphaAcknowledged,
+            //     onDismissed = {
+            //         alphaAcknowledged = true
+            //     },
+            // )
 
-            if (screenCaptureNoticeEventId > 0L) {
-                ScreenCaptureNoticeDialog(
-                    noticeInstanceKey = screenCaptureNoticeEventId,
-                    onDismiss = {
-                        screenCaptureNoticeEventId = 0L
-                    },
-                )
-            }
+            // if (screenCaptureNoticeEventId > 0L) {
+            //     ScreenCaptureNoticeDialog(
+            //         noticeInstanceKey = screenCaptureNoticeEventId,
+            //         onDismiss = {
+            //             screenCaptureNoticeEventId = 0L
+            //         },
+            //     )
+            // }
         }
     }
 }
@@ -705,16 +705,16 @@ private fun AppReadyShell(
                 .padding(end = 20.dp, bottom = 28.dp),
         )
 
-        if (
-            detectorResultNoticeKey != null &&
-            detectorResultNoticeKey != dismissedDetectorResultNoticeKey
-        ) {
-            DetectorResultNoticeDialog(
-                onDismiss = {
-                    dismissedDetectorResultNoticeKey = detectorResultNoticeKey
-                },
-            )
-        }
+        // if (
+        //     detectorResultNoticeKey != null &&
+        //     detectorResultNoticeKey != dismissedDetectorResultNoticeKey
+        // ) {
+        //     DetectorResultNoticeDialog(
+        //         onDismiss = {
+        //             dismissedDetectorResultNoticeKey = detectorResultNoticeKey
+        //         },
+        //     )
+        // }
     }
 }
 

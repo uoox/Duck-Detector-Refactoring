@@ -101,20 +101,20 @@ fun DetectorCardFrame(
             modifier = Modifier
                 .fillMaxWidth()
                 .animateContentSize()
-                .padding(horizontal = 18.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Box(
                     modifier = Modifier
-                        .size(54.dp)
+                        .size(36.dp)
                         .background(
                             color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                            shape = ShapeTokens.CornerLargeIncreased,
+                            shape = ShapeTokens.CornerLarge,
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -122,7 +122,34 @@ fun DetectorCardFrame(
                         imageVector = leadingIcon,
                         contentDescription = null,
                         tint = appearance.iconTint,
+                        modifier = Modifier.size(20.dp),
                     )
+                }
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        WrapSafeText(
+                            text = title,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        CompactStatusBadge(status = status)
+                    }
+
+                    if (subtitle.isNotBlank()) {
+                        WrapSafeText(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
 
                 IconButton(
@@ -133,44 +160,22 @@ fun DetectorCardFrame(
                         }
                         onExpandedChange?.invoke(next)
                     },
+                    modifier = Modifier.size(36.dp),
                 ) {
                     Icon(
                         imageVector = if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
                         contentDescription = toggleDescription,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
                     )
                 }
             }
 
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    WrapSafeText(
-                        text = title,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    CompactStatusBadge(status = status)
-                }
-
-                if (subtitle.isNotBlank()) {
-                    WrapSafeText(
-                        text = subtitle,
-                        modifier = Modifier.fillMaxWidth(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-
+            if (verdict.isNotBlank()) {
                 WrapSafeText(
                     text = verdict,
                     modifier = Modifier.fillMaxWidth(),
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
             }

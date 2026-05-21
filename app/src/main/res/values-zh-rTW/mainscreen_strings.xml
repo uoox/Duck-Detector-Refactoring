@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Copyright 2026 Duck Apps Contributor
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="MissingTranslation"
+    tools:locale="zh-rTW">
+    <string name="app_name">鴨子檢測器</string>
+    <string name="status_info">資訊</string>
+    <string name="status_all_clear">一切正常</string>
+    <string name="status_warning">警告</string>
+    <string name="status_danger">危險</string>
+    <string name="status_info_error">錯誤</string>
+    <string name="status_info_support">支援</string>
+    <string name="dashboard_info_card">資訊卡片</string>
+    <string name="dashboard_system_time">系統時間</string>
+    <string name="dashboard_additional">附加資訊</string>
+    <string name="dashboard_detectors">檢測器</string>
+    <string name="card_expand">展開卡片</string>
+    <string name="card_collapse">收起卡片</string>
+    <string name="card_action_view_details">檢視詳情</string>
+    <string name="card_action_review_evidence">檢視證據</string>
+    <string name="card_action_certificate_chain">憑證鏈</string>
+    
+    <string name="dashboard_top_findings">主要發現</string>
+    <string name="dashboard_priority_queue">優先審查佇列</string>
+    <string name="dashboard_severity_high">高危險</string>
+    <string name="dashboard_severity_warn">警告</string>
+    <string name="dashboard_severity_check">檢查</string>
+    <string name="dashboard_severity_clear">正常</string>
+    <string name="dashboard_export_report">匯出報告</string>
+    <string name="dashboard_report_saved">報告已儲存</string>
+    <string name="dashboard_save_failed">儲存失敗：%1$s</string>
+    <string name="dashboard_qq_group">QQ群</string>
+    <string name="dashboard_qq_copied">QQ群號已複製：%1$s</string>
+    <string name="dashboard_build_time">建置時間 (UTC)</string>
+    <string name="dashboard_running_checks">正在執行本機檢查</string>
+    <string name="dashboard_loading_summary">當檢測卡片完成證據收集後，儀表板摘要將解鎖。</string>
+</resources>

@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -121,13 +122,13 @@ fun DashboardScreen(
                 }
                 Toast.makeText(
                     context,
-                    "Report saved",
+                    context.getString(R.string.dashboard_report_saved),
                     Toast.LENGTH_SHORT,
                 ).show()
             } catch (e: Exception) {
                 Toast.makeText(
                     context,
-                    "Save failed: ${e.message}",
+                    context.getString(R.string.dashboard_save_failed, e.message),
                     Toast.LENGTH_SHORT,
                 ).show()
             }
@@ -144,18 +145,17 @@ fun DashboardScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding(),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(
-                start = 20.dp,
-                top = 16.dp,
-                end = 20.dp,
-                bottom = 28.dp,
+                start = 12.dp,
+                top = 12.dp,
+                end = 12.dp,
+                bottom = 16.dp,
             ),
         ) {
-            item { BrandHeader() }
             item {
-                ExportButton(
-                    onClick = {
+                BrandHeader(
+                    onExportClick = {
                         exportLauncher.launch("duck_detector_report.txt")
                     },
                 )
@@ -288,13 +288,13 @@ private fun DashboardLoadingOverlay(
                 indicatorColor = MaterialTheme.colorScheme.onPrimaryContainer,
             )
             WrapSafeText(
-                text = "Running local checks",
+                text = stringResource(R.string.dashboard_running_checks),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center,
             )
             WrapSafeText(
-                text = "Dashboard summary will unlock when the detector cards finish collecting evidence.",
+                text = stringResource(R.string.dashboard_loading_summary),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -304,33 +304,34 @@ private fun DashboardLoadingOverlay(
 }
 
 @Composable
-private fun BrandHeader() {
+private fun BrandHeader(
+    onExportClick: () -> Unit,
+) {
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Surface(
+        shape = ShapeTokens.CornerExtraLargeIncreased,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
-        Surface(
-            shape = ShapeTokens.CornerExtraLargeIncreased,
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Surface(
-                    shape = ShapeTokens.CornerExtraLargeIncreased,
+                    shape = ShapeTokens.CornerLarge,
                     color = MaterialTheme.colorScheme.surfaceContainerHighest,
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(82.dp)
-                            .padding(18.dp),
+                            .size(44.dp)
+                            .padding(8.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -341,141 +342,87 @@ private fun BrandHeader() {
                     }
                 }
 
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        WrapSafeText(
+                            text = stringResource(R.string.app_name),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        WrapSafeText(
+                            text = "v${BuildConfig.VERSION_NAME}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    WrapSafeText(
+                        text = stringResource(R.string.dashboard_build_time) + ": " + formatBuildTimeUtc(BuildConfig.BUILD_TIME_UTC),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    SocialGlyph(
+                        iconRes = R.drawable.ic_telegram,
+                        onClick = {
+                            uriHandler.openUri("https://t.me/duck_detector")
+                        },
+                    )
+                    SocialGlyph(
+                        iconVector = SimpleIcons.Tencentqq,
+                        onClick = {
+                            context.getSystemService(android.content.ClipboardManager::class.java)
+                                ?.setPrimaryClip(
+                                    ClipData.newPlainText(
+                                        "Duck Detector QQ group",
+                                        DUCK_DETECTOR_QQ_GROUP,
+                                    ),
+                                )
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.dashboard_qq_copied, DUCK_DETECTOR_QQ_GROUP),
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                            uriHandler.openUri(DUCK_DETECTOR_QQ_GROUP_URL)
+                        },
+                    )
+                }
+            }
+
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f),
+                thickness = 1.dp,
+            )
+
+            FilledTonalButton(
+                onClick = onExportClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(36.dp),
+                contentPadding = PaddingValues(vertical = 0.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.FileDownload,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(modifier = Modifier.size(6.dp))
                 WrapSafeText(
-                    text = stringResource(R.string.app_name),
-                    modifier = Modifier.fillMaxWidth(),
-                    style = MaterialTheme.typography.displaySmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
-                )
-                BrandMetaLine(
-                    icon = Icons.Rounded.Badge,
-                    text = "${BuildConfig.VERSION_NAME}(${BuildConfig.VERSION_CODE})",
-                )
-                BuildTimeMetaBlock(
-                    icon = Icons.Rounded.Schedule,
-                    label = "Build Time (UTC)",
-                    time = formatBuildTimeUtc(BuildConfig.BUILD_TIME_UTC),
+                    text = stringResource(R.string.dashboard_export_report),
+                    style = MaterialTheme.typography.labelMedium,
                 )
             }
         }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            SocialGlyph(
-                iconRes = R.drawable.ic_telegram,
-                onClick = {
-                    uriHandler.openUri("https://t.me/duck_detector")
-                },
-            )
-            SocialGlyph(
-                iconVector = SimpleIcons.Tencentqq,
-                onClick = {
-                    context.getSystemService(android.content.ClipboardManager::class.java)
-                        ?.setPrimaryClip(
-                            ClipData.newPlainText(
-                                "Duck Detector QQ group",
-                                DUCK_DETECTOR_QQ_GROUP,
-                            ),
-                        )
-                    Toast.makeText(
-                        context,
-                        "QQ group number copied: $DUCK_DETECTOR_QQ_GROUP",
-                        Toast.LENGTH_SHORT,
-                    ).show()
-                    uriHandler.openUri(DUCK_DETECTOR_QQ_GROUP_URL)
-                },
-            )
-        }
-    }
-}
-
-@Composable
-private fun ExportButton(
-    onClick: () -> Unit,
-) {
-    FilledTonalButton(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Icon(
-            imageVector = Icons.Rounded.FileDownload,
-            contentDescription = null,
-            modifier = Modifier.size(18.dp),
-        )
-        Spacer(modifier = Modifier.size(8.dp))
-        WrapSafeText(
-            text = "Export Report",
-            style = MaterialTheme.typography.labelLarge,
-        )
-    }
-}
-
-@Composable
-private fun BrandMetaLine(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    text: String,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(14.dp),
-        )
-        Spacer(modifier = Modifier.size(6.dp))
-        WrapSafeText(
-            text = text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-    }
-}
-
-@Composable
-private fun BuildTimeMetaBlock(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    time: String,
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Row(
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(14.dp),
-            )
-            Spacer(modifier = Modifier.size(6.dp))
-            WrapSafeText(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-        }
-        WrapSafeText(
-            text = time,
-            modifier = Modifier.fillMaxWidth(),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
     }
 }
 
@@ -491,9 +438,9 @@ private fun SocialGlyph(
     ) {
         Box(
             modifier = Modifier
-                .size(42.dp)
+                .size(32.dp)
                 .clickable(onClick = onClick)
-                .padding(10.dp),
+                .padding(6.dp),
             contentAlignment = Alignment.Center,
         ) {
             when {
@@ -512,6 +459,7 @@ private fun SocialGlyph(
         }
     }
 }
+
 
 @Composable
 private fun DashboardOverviewCard(
@@ -721,12 +669,12 @@ private fun DashboardFindingsHeader(
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             WrapSafeText(
-                text = "Top findings",
+                text = stringResource(R.string.dashboard_top_findings),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             WrapSafeText(
-                text = "Priority review queue",
+                text = stringResource(R.string.dashboard_priority_queue),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -826,13 +774,14 @@ private fun DashboardFindingRow(
     }
 }
 
+@Composable
 private fun findingSeverityLabel(
     finding: DashboardFindingModel,
 ): String {
     return when (finding.status.severity) {
-        DetectionSeverity.DANGER -> "High"
-        DetectionSeverity.WARNING -> "Warn"
-        DetectionSeverity.INFO -> "Check"
-        DetectionSeverity.ALL_CLEAR -> "Clear"
+        DetectionSeverity.DANGER -> stringResource(R.string.dashboard_severity_high)
+        DetectionSeverity.WARNING -> stringResource(R.string.dashboard_severity_warn)
+        DetectionSeverity.INFO -> stringResource(R.string.dashboard_severity_check)
+        DetectionSeverity.ALL_CLEAR -> stringResource(R.string.dashboard_severity_clear)
     }
 }

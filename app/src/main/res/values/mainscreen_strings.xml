@@ -33,4 +33,20 @@ limitations under the License.
     <string name="card_action_view_details">View details</string>
     <string name="card_action_review_evidence">Review evidence</string>
     <string name="card_action_certificate_chain">Certificate chain</string>
+
+    <string name="dashboard_top_findings">Top findings</string>
+    <string name="dashboard_priority_queue">Priority review queue</string>
+    <string name="dashboard_severity_high">High</string>
+    <string name="dashboard_severity_warn">Warn</string>
+    <string name="dashboard_severity_check">Check</string>
+    <string name="dashboard_severity_clear">Clear</string>
+    <string name="dashboard_export_report">Export Report</string>
+    <string name="dashboard_report_saved">Report saved</string>
+    <string name="dashboard_save_failed">Save failed: %1$s</string>
+    <string name="dashboard_qq_group">QQ group</string>
+    <string name="dashboard_qq_copied">QQ group number copied: %1$s</string>
+    <string name="dashboard_build_time">Build Time (UTC)</string>
+    <string name="dashboard_running_checks">Running local checks</string>
+    <string name="dashboard_loading_summary">Dashboard summary will unlock when the detector cards finish collecting evidence.</string>
 </resources>
+
