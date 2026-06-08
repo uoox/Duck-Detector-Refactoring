@@ -16,10 +16,15 @@
 
 package com.eltavine.duckdetector.features.dangerousapps.data.repository
 
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.os.IBinder
 import android.os.Parcel
 import android.provider.Settings
+import android.system.ErrnoException
+import android.system.Os
+import android.system.OsConstants
 import android.text.TextUtils
 import com.eltavine.duckdetector.features.dangerousapps.data.native.DangerousAppsNativeBridge
 import com.eltavine.duckdetector.features.dangerousapps.data.probes.CreatePackageContextZipProbe
@@ -35,6 +40,7 @@ import com.eltavine.duckdetector.features.dangerousapps.domain.DangerousDetectio
 import com.eltavine.duckdetector.features.dangerousapps.domain.DangerousPackageVisibility
 import java.io.File
 import java.util.concurrent.TimeUnit
+import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -69,12 +75,16 @@ class DangerousAppsRepository(
             packageVisibility = packageVisibility,
             installedPackageCount = packageManagerVisibleCount,
         )
+        val suspiciousSharedStorageDenied = detectSharedStorageBaselineDenied()
 
         if (packageVisibility == DangerousPackageVisibility.RESTRICTED) {
             issues += "PackageManager visibility is restricted on this device profile."
         }
         if (suspiciousLowPmInventory) {
             issues += "PackageManager returned only $packageManagerVisibleCount visible packages despite a full inventory result. This can happen under HMA-style whitelist filtering."
+        }
+        if (suspiciousSharedStorageDenied) {
+            issues += "Shared external-storage baseline paths all returned EACCES/EPERM. This suggests shared user gid or related zygote storage groups may have been restricted."
         }
 
         if (packageVisibility == DangerousPackageVisibility.FULL) {
@@ -198,6 +208,25 @@ class DangerousAppsRepository(
                 )
             }
 
+        detectSceneDebugfsMount()?.let { markerPath ->
+            appendMethod(
+                detectedApps = detectedApps,
+                packageName = SCENE_PACKAGE,
+                method = DangerousDetectionMethod(
+                    kind = DangerousDetectionMethodKind.SPECIAL_PATH,
+                    detail = markerPath,
+                ),
+            )
+        }
+
+        if (detectSceneBroadcast()) {
+            appendMethod(
+                detectedApps = detectedApps,
+                packageName = SCENE_PACKAGE,
+                method = DangerousDetectionMethod(DangerousDetectionMethodKind.SCENE_BROADCAST),
+            )
+        }
+
         val findings = buildFindings(detectedApps)
         val hiddenFromPackageManager = if (packageVisibility == DangerousPackageVisibility.FULL) {
             findings.filter { finding ->
@@ -213,6 +242,7 @@ class DangerousAppsRepository(
             packageVisibility = packageVisibility,
             packageManagerVisibleCount = packageManagerVisibleCount,
             suspiciousLowPmInventory = suspiciousLowPmInventory,
+            suspiciousSharedStorageDenied = suspiciousSharedStorageDenied,
             targets = targets,
             findings = findings,
             hiddenFromPackageManager = hiddenFromPackageManager,
@@ -254,6 +284,7 @@ class DangerousAppsRepository(
             add(DangerousDetectionMethodKind.NATIVE_DATA_STAT)
             add(DangerousDetectionMethodKind.SPECIAL_PATH)
             add(DangerousDetectionMethodKind.SCENE_LOOPBACK)
+            add(DangerousDetectionMethodKind.SCENE_BROADCAST)
             add(DangerousDetectionMethodKind.THANOX_IPC)
             add(DangerousDetectionMethodKind.ACCESSIBILITY_SERVICE)
         }
@@ -392,6 +423,19 @@ class DangerousAppsRepository(
         }
     }
 
+    private fun detectSharedStorageBaselineDenied(): Boolean {
+        return SHARED_STORAGE_BASELINE_PATHS.all { path ->
+            try {
+                Os.stat(path)
+                false
+            } catch (e: ErrnoException) {
+                e.errno == OsConstants.EACCES || e.errno == OsConstants.EPERM
+            } catch (_: Exception) {
+                false
+            }
+        }
+    }
+
     @Suppress("PrivateApi")
     private fun detectThanoxIpc(): Boolean {
         var data: Parcel? = null
@@ -436,13 +480,251 @@ class DangerousAppsRepository(
         }
     }
 
+    /**
+     * Scene 9.3.0 Alpha13 mounts debugfs at /dev/<random>/debug
+     * and creates a marker file /dev/<random>/scene_mode_category.
+     *
+     * Detection:
+     *   1. Parse /proc/self/mountinfo → extract hash dir from mount_point
+     *   2. Verify /dev/<hash>/scene_mode_category exists
+     *      - access(F_OK) → 0 (permission allows existence check)
+     *      - mkdir(path)  → EEXIST (path already exists as non-dir)
+     *      - stat(path)   → EACCES (file exists but metadata denied)
+     *   3. Fallback: /proc/self/mounts → mount command
+     *
+     * Returns the marker path if detected, null otherwise.
+     */
+    private fun detectSceneDebugfsMount(): String? {
+        // Hash dir regex: 8 characters consisting of lowercase letters and underscores
+        val hashRegex = Regex("^/([a-z_]{8})/debug$")
+
+        // 1. Find the hash directory from mountinfo (preferred)
+        val hashDir = try {
+            File("/proc/self/mountinfo").useLines { lines ->
+                lines.firstNotNullOfOrNull { line ->
+                    val fields = line.split(" ")
+                    val fstypeIdx = fields.indexOf("-")
+                    if (fstypeIdx >= 0 && fstypeIdx + 2 < fields.size &&
+                        fields[fstypeIdx + 1] == "debugfs") {
+                        val match = hashRegex.matchEntire(fields[4].removePrefix("/dev"))
+                        match?.groupValues?.getOrNull(1)
+                    } else null
+                }
+            }
+        } catch (_: Exception) {
+            null
+        }
+
+        // 2. Fallback: /proc/self/mounts (format: device mount_point fstype options ...)
+        val hashDir2 = hashDir ?: try {
+            File("/proc/self/mounts").useLines { lines ->
+                lines.firstNotNullOfOrNull { line ->
+                    val parts = line.split(" ").filter { it.isNotEmpty() }
+                    if (parts.size >= 3 && parts[2] == "debugfs") {
+                        val mountPoint = parts[1].removePrefix("/dev")
+                        val match = hashRegex.matchEntire(mountPoint)
+                        match?.groupValues?.getOrNull(1)
+                    } else null
+                }
+            }
+        } catch (_: Exception) {
+            null
+        }
+
+        // 3. Fallback: mount command (format: "debugfs on /dev/<hash>/debug type debugfs ...")
+        val hashDir3 = hashDir2 ?: run {
+            var process: Process? = null
+            try {
+                val mountRegex = Regex("debugfs on /dev/([a-z_]{8})/debug")
+                process = ProcessBuilder("mount").redirectErrorStream(true).start()
+                var matchedHash: String? = null
+                process.inputStream.bufferedReader().useLines { lines ->
+                    matchedHash = lines.firstNotNullOfOrNull { line ->
+                        mountRegex.find(line)?.groupValues?.getOrNull(1)
+                    }
+                }
+                process.waitFor(2, TimeUnit.SECONDS)
+                matchedHash
+            } catch (_: Exception) {
+                null
+            } finally {
+                process?.destroy()
+            }
+        }
+
+        val finalHash = hashDir3 ?: return null
+
+        // Verify marker using kernel-level syscall evidence chain:
+        //   access(F_OK) → 0        (File exists)
+        //   mkdir(path)  → EEXIST   (Path already exists as non-directory)
+        //   stat(path)   → EACCES   (File exists but metadata denied)
+        val markerPath = "/dev/$finalHash/scene_mode_category"
+
+        // 1. Precise existence check: distinguish ENOENT from EACCES
+        try {
+            Os.access(markerPath, OsConstants.F_OK)
+        } catch (e: ErrnoException) {
+            if (e.errno == OsConstants.ENOENT) {
+                // File truly does not exist — must short-circuit to avoid
+                // creating a spurious directory via mkdir below.
+                return null
+            }
+            // EACCES or other: file may exist but access denied.
+            // Do NOT short-circuit — fall through to mkdir side-channel.
+        }
+
+        // 2. mkdir side-channel: kernel prioritises EEXIST over EACCES
+        val mkdirEexist = try {
+            Os.mkdir(markerPath, 0)
+            // mkdir succeeded → file did not exist, we just created a
+            // spurious directory. Clean it up immediately.
+            runCatching { Os.remove(markerPath) }
+            false
+        } catch (e: ErrnoException) {
+            e.errno == OsConstants.EEXIST
+        }
+        if (!mkdirEexist) return null
+
+        // 3. stat metadata denial
+        val statDenied = try {
+            Os.stat(markerPath)
+            false // stat succeeded → regular accessible file
+        } catch (e: ErrnoException) {
+            e.errno == OsConstants.EACCES
+        }
+        return if (statDenied) markerPath else null
+    }
+
+    private fun detectSceneBroadcast(): Boolean {
+        val token = Random.nextLong().toULong().toString(16) +
+            Random.nextLong().toULong().toString(16)
+        val pocPath = "/sdcard/$token"
+        val detected = try {
+            val intent = Intent().apply {
+                component = ComponentName(
+                    "com.omarea.vtools",
+                    "com.omarea.scene_mode.ReceiverShortcut",
+                )
+                putExtra("packageName", "x; touch $pocPath; id >> $pocPath; #")
+            }
+            context.sendBroadcast(intent)
+            waitForScenePocFile(pocPath)
+        } catch (_: Exception) {
+            false
+        } finally {
+            runCatching { File(pocPath).delete() }
+        }
+        return detected
+    }
+
+    private fun waitForScenePocFile(path: String): Boolean {
+        repeat(SCENE_BROADCAST_POLL_ATTEMPTS) { attempt ->
+            if (verifyPocFile(path)) {
+                return true
+            }
+            if (attempt + 1 < SCENE_BROADCAST_POLL_ATTEMPTS) {
+                Thread.sleep(SCENE_BROADCAST_POLL_INTERVAL_MS)
+            }
+        }
+        return false
+    }
+
+    private fun verifyPocFile(path: String): Boolean {
+        val accessOutcome = probeAccess(path)
+        val statOutcome = probeStat(path)
+        val openOutcome = probeOpen(path)
+        val createOutcome = probeCreate(path)
+
+        if (listOf(accessOutcome, statOutcome, openOutcome).any { it == PathProbeOutcome.MISSING }) {
+            return false
+        }
+
+        runCatching { Os.getxattr(path, "security.selinux") }
+
+        return createOutcome == CreateProbeOutcome.ALREADY_EXISTS ||
+            listOf(accessOutcome, statOutcome, openOutcome).any { it == PathProbeOutcome.EXISTS }
+    }
+
+    private fun probeAccess(path: String): PathProbeOutcome {
+        return try {
+            Os.access(path, OsConstants.F_OK)
+            PathProbeOutcome.EXISTS
+        } catch (e: ErrnoException) {
+            when (e.errno) {
+                OsConstants.ENOENT -> PathProbeOutcome.MISSING
+                OsConstants.EACCES, OsConstants.EPERM -> PathProbeOutcome.UNKNOWN
+                else -> PathProbeOutcome.UNKNOWN
+            }
+        }
+    }
+
+    private fun probeStat(path: String): PathProbeOutcome {
+        return try {
+            Os.stat(path)
+            PathProbeOutcome.EXISTS
+        } catch (e: ErrnoException) {
+            when (e.errno) {
+                OsConstants.ENOENT -> PathProbeOutcome.MISSING
+                OsConstants.EACCES, OsConstants.EPERM -> PathProbeOutcome.UNKNOWN
+                else -> PathProbeOutcome.UNKNOWN
+            }
+        }
+    }
+
+    private fun probeOpen(path: String): PathProbeOutcome {
+        return try {
+            val fd = Os.open(path, OsConstants.O_RDONLY, 0)
+            Os.close(fd)
+            PathProbeOutcome.EXISTS
+        } catch (e: ErrnoException) {
+            when (e.errno) {
+                OsConstants.ENOENT -> PathProbeOutcome.MISSING
+                OsConstants.EACCES, OsConstants.EPERM -> PathProbeOutcome.UNKNOWN
+                OsConstants.EISDIR -> PathProbeOutcome.EXISTS
+                else -> PathProbeOutcome.UNKNOWN
+            }
+        }
+    }
+
+    private fun probeCreate(path: String): CreateProbeOutcome {
+        return try {
+            val fd = Os.open(path, OsConstants.O_CREAT or OsConstants.O_EXCL or OsConstants.O_WRONLY, 0)
+            Os.close(fd)
+            runCatching { Os.remove(path) }
+            CreateProbeOutcome.CREATED_BY_US
+        } catch (e: ErrnoException) {
+            when (e.errno) {
+                OsConstants.EEXIST -> CreateProbeOutcome.ALREADY_EXISTS
+                OsConstants.EACCES, OsConstants.EPERM -> CreateProbeOutcome.BLOCKED
+                OsConstants.ENOENT -> CreateProbeOutcome.MISSING
+                else -> CreateProbeOutcome.UNKNOWN
+            }
+        }
+    }
+
     private data class MutableFinding(
         val target: DangerousAppTarget,
         val methods: LinkedHashSet<DangerousDetectionMethod> = linkedSetOf(),
     )
 
+    private enum class PathProbeOutcome {
+        EXISTS,
+        MISSING,
+        UNKNOWN,
+    }
+
+    private enum class CreateProbeOutcome {
+        ALREADY_EXISTS,
+        CREATED_BY_US,
+        MISSING,
+        BLOCKED,
+        UNKNOWN,
+    }
+
     companion object {
         private const val PROCESS_TIMEOUT_SECONDS = 5L
+        private const val SCENE_BROADCAST_POLL_ATTEMPTS = 8
+        private const val SCENE_BROADCAST_POLL_INTERVAL_MS = 150L
         private const val ZERO_WIDTH_SPACE = "\u200B"
         private const val THANOX_PROXIED_SERVICE = "dropbox"
         private const val THANOX_PACKAGE = "github.tornaco.android.thanos"
@@ -456,6 +738,13 @@ class DangerousAppsRepository(
             "\uFE0F",
             "\uFEFF",
             "\uFFA0",
+        )
+        private val SHARED_STORAGE_BASELINE_PATHS = listOf(
+            "/sdcard",
+            "/sdcard/Android",
+            "/sdcard/DCIM",
+            "/sdcard/Download",
+            "/sdcard/Pictures",
         )
     }
 }

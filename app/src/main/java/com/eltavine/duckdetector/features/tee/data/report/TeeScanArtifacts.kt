@@ -29,10 +29,15 @@ import com.eltavine.duckdetector.features.tee.data.verification.keystore.BinderC
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.BinderHookBootstrapResult
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.BinderPatchModeResult
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.BiometricTeeIntegrationResult
+import com.eltavine.duckdetector.features.tee.data.verification.keystore.ImportKeyRetainedAttestationNarrativeResult
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.KeyboxImportResult
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.Keystore2GenerateModeParcelFingerprintResult
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.Keystore2HookResult
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.KeyLifecycleResult
+import com.eltavine.duckdetector.features.tee.data.verification.keystore.GrantDomainFullChainSplitResult
+import com.eltavine.duckdetector.features.tee.data.verification.keystore.GrantSelfDomainFullChainSplitResult
+import com.eltavine.duckdetector.features.tee.data.verification.keystore.SyntheticGrantGetKeyEntryAccessVectorBlindnessResult
+import com.eltavine.duckdetector.features.tee.data.verification.keystore.SyntheticGrantGranteeBlindReadbackResult
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.LegacyKeystorePathResult
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.ListEntriesBatchedResult
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.ListEntriesConsistencyResult
@@ -47,6 +52,7 @@ import com.eltavine.duckdetector.features.tee.data.verification.keystore.PureCer
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.TimingAnomalyResult
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.TimingSideChannelResult
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.UpdateSubcomponentResult
+import com.eltavine.duckdetector.features.tee.data.verification.keystore.UpdateSubcomponentStaleResponsePersistenceResult
 import com.eltavine.duckdetector.features.tee.data.verification.strongbox.StrongBoxBehaviorResult
 import com.eltavine.duckdetector.features.tee.domain.TeeRkpState
 import com.eltavine.duckdetector.features.tee.domain.TeeSoterState
@@ -64,8 +70,13 @@ data class TeeScanArtifacts(
     val timingSideChannel: TimingSideChannelResult,
     val oversizedChallenge: OversizedChallengeResult,
     val keyboxImport: KeyboxImportResult,
+    val importKeyRetainedAttestationNarrative: ImportKeyRetainedAttestationNarrativeResult,
     val keystore2Hook: Keystore2HookResult,
     val generateModeParcelFingerprint: Keystore2GenerateModeParcelFingerprintResult,
+    val grantDomainFullChainSplit: GrantDomainFullChainSplitResult,
+    val syntheticGrantGranteeBlindReadback: SyntheticGrantGranteeBlindReadbackResult,
+    val syntheticGrantGetKeyEntryAccessVectorBlindness: SyntheticGrantGetKeyEntryAccessVectorBlindnessResult,
+    val grantSelfDomainFullChainSplit: GrantSelfDomainFullChainSplitResult,
     val legacyKeystorePath: LegacyKeystorePathResult,
     val listEntriesConsistency: ListEntriesConsistencyResult,
     val listEntriesBatched: ListEntriesBatchedResult,
@@ -79,6 +90,7 @@ data class TeeScanArtifacts(
     val binderPatchMode: BinderPatchModeResult,
     val binderChainConsistency: BinderChainConsistencyResult,
     val updateSubcomponent: UpdateSubcomponentResult,
+    val updateSubcomponentStaleResponsePersistence: UpdateSubcomponentStaleResponsePersistenceResult,
     val pruning: OperationPruningResult,
     val dualAlgorithm: DualAlgorithmChainResult,
     val idAttestation: IdAttestationResult,

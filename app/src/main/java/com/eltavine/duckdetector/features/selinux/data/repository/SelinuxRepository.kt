@@ -23,6 +23,8 @@ import com.eltavine.duckdetector.features.selinux.data.probes.DedicatedCarrierSt
 import com.eltavine.duckdetector.features.selinux.data.probes.SelinuxContextValidityProbe
 import com.eltavine.duckdetector.features.selinux.data.probes.SelinuxContextValidityProbeResult
 import com.eltavine.duckdetector.features.selinux.data.probes.SelinuxContextValidityState
+import com.eltavine.duckdetector.features.selinux.data.probes.SelinuxPolicyloadSeqnoProbe
+import com.eltavine.duckdetector.features.selinux.data.probes.SelinuxPolicyloadSeqnoState
 import com.eltavine.duckdetector.features.selinux.data.probes.SelinuxProcAttrCurrentProbe
 import com.eltavine.duckdetector.features.selinux.data.probes.SelinuxProcAttrCurrentResult
 import com.eltavine.duckdetector.features.selinux.data.service.SelinuxContextValidityCarrierManager
@@ -94,6 +96,7 @@ class SelinuxRepository(
         val carrierResult = contextValidityProbe.interpret(carrierSnapshot)
         val contextValidityResult = carrierResult
         methods += buildContextValidityMethod(contextValidityResult)
+        methods += buildPolicyloadSeqnoMethod(contextValidityResult)
         methods += buildProcAttrCurrentMethod(carrierResult, EvidenceSource.DEDICATED_CARRIER)
         methods += buildDirtyPolicyMethods(carrierSnapshot)
 
@@ -378,6 +381,46 @@ class SelinuxRepository(
         )
     }
 
+    private fun buildPolicyloadSeqnoMethod(
+        result: SelinuxContextValidityProbeResult,
+    ): SelinuxCheckResult {
+        val state = runCatching {
+            SelinuxPolicyloadSeqnoState.valueOf(result.policyloadSeqnoState.orEmpty())
+        }.getOrDefault(SelinuxPolicyloadSeqnoState.UNAVAILABLE)
+        val status = when (state) {
+            SelinuxPolicyloadSeqnoState.CLEAN -> SelinuxPolicyloadSeqnoProbe.STATUS_CLEAN
+            SelinuxPolicyloadSeqnoState.SUSPICIOUS -> SelinuxPolicyloadSeqnoProbe.STATUS_SUSPICIOUS
+            SelinuxPolicyloadSeqnoState.INCONCLUSIVE -> SelinuxPolicyloadSeqnoProbe.STATUS_INCONCLUSIVE
+            SelinuxPolicyloadSeqnoState.UNAVAILABLE -> SelinuxPolicyloadSeqnoProbe.STATUS_UNAVAILABLE
+        }
+        val detail = buildList {
+            add("Evidence source=${EvidenceSource.DEDICATED_CARRIER.label}")
+            add("Carrier=${result.policyloadSeqnoCarrierContext ?: result.carrierContext ?: "<unreadable>"}")
+            add("zygotePreloadName required=yes")
+            add("Probe attempted=${if (result.policyloadSeqnoProbeAttempted) "yes" else "no"}")
+            result.policyloadSeqnoStatusSequence?.let { add("status.sequence=$it") }
+            result.policyloadSeqnoStatusPolicyload?.let { add("status.policyload=$it") }
+            result.policyloadSeqnoAccessSeqno?.let { add("access.avd.seqno=$it") }
+            result.policyloadSeqnoProcessClass?.let { add("process class=$it") }
+            (result.policyloadSeqnoFailureReason ?: result.failureReason)
+                ?.let { add("Failure=$it") }
+            result.policyloadSeqnoNotes.forEach(::add)
+        }.joinToString(" | ")
+
+        return SelinuxCheckResult(
+            method = SelinuxPolicyloadSeqnoProbe.METHOD_LABEL,
+            status = status,
+            isSecure = when (state) {
+                SelinuxPolicyloadSeqnoState.CLEAN -> true
+                SelinuxPolicyloadSeqnoState.SUSPICIOUS -> false
+                SelinuxPolicyloadSeqnoState.INCONCLUSIVE,
+                SelinuxPolicyloadSeqnoState.UNAVAILABLE -> null
+            },
+            permissionDenied = false,
+            details = detail,
+        )
+    }
+
     private fun buildProcAttrCurrentMethod(
         result: SelinuxContextValidityProbeResult,
         source: EvidenceSource,
@@ -496,6 +539,30 @@ class SelinuxRepository(
                 nativeAllowed = nativeTrack.lsposedFileReadAllowed,
                 javaAllowed = javaTrack.lsposedFileReadAllowed,
                 detail = "Observed edge: untrusted_app -> lsposed_file:file read. This should stay denied on stock policy because ordinary apps should not read LSPosed-labeled files.",
+                nativeTrack = nativeTrack,
+                javaTrack = javaTrack,
+            ),
+            aggregateDirtyPolicyRuleMethod(
+                label = "Droidspaces checker: magisk -> droidspacesd dyntransition",
+                nativeAllowed = nativeTrack.magiskDroidspacesdTransitionAllowed,
+                javaAllowed = javaTrack.magiskDroidspacesdTransitionAllowed,
+                detail = "Observed edge: magisk -> droidspacesd:process dyntransition. Droidspaces seeds this transition from its module policy so Magisk-rooted execution can move into the dedicated droidspacesd domain.",
+                nativeTrack = nativeTrack,
+                javaTrack = javaTrack,
+            ),
+            aggregateDirtyPolicyRuleMethod(
+                label = "Droidspaces checker: su -> droidspacesd dyntransition",
+                nativeAllowed = nativeTrack.suDroidspacesdTransitionAllowed,
+                javaAllowed = javaTrack.suDroidspacesdTransitionAllowed,
+                detail = "Observed edge: su -> droidspacesd:process dyntransition. Droidspaces exposes this transition so an su-rooted process can enter the dedicated droidspacesd domain.",
+                nativeTrack = nativeTrack,
+                javaTrack = javaTrack,
+            ),
+            aggregateDirtyPolicyRuleMethod(
+                label = "Droidspaces checker: system_server -> droidspacesd binder",
+                nativeAllowed = nativeTrack.systemServerDroidspacesdBinderCallAllowed,
+                javaAllowed = javaTrack.systemServerDroidspacesdBinderCallAllowed,
+                detail = "Observed edge: system_server -> droidspacesd:binder call. Droidspaces allows system_server to talk to the dedicated droidspacesd service over binder.",
                 nativeTrack = nativeTrack,
                 javaTrack = javaTrack,
             ),
@@ -634,6 +701,9 @@ class SelinuxRepository(
                 magiskBinderCallAllowed = snapshot.dirtyPolicyMagiskBinderCallAllowed,
                 ksuFileReadAllowed = snapshot.dirtyPolicyKsuFileReadAllowed,
                 lsposedFileReadAllowed = snapshot.dirtyPolicyLsposedFileReadAllowed,
+                magiskDroidspacesdTransitionAllowed = snapshot.dirtyPolicyMagiskDroidspacesdTransitionAllowed,
+                suDroidspacesdTransitionAllowed = snapshot.dirtyPolicySuDroidspacesdTransitionAllowed,
+                systemServerDroidspacesdBinderCallAllowed = snapshot.dirtyPolicySystemServerDroidspacesdBinderCallAllowed,
                 msdAppDaemonConnectAllowed = snapshot.dirtyPolicyMsdAppDaemonConnectAllowed,
                 msdDaemonSelfConnectAllowed = snapshot.dirtyPolicyMsdDaemonSelfConnectAllowed,
                 msdDaemonSelinuxfsReadAllowed = snapshot.dirtyPolicyMsdDaemonSelinuxfsReadAllowed,
@@ -661,6 +731,9 @@ class SelinuxRepository(
                 magiskBinderCallAllowed = snapshot.javaDirtyPolicyMagiskBinderCallAllowed,
                 ksuFileReadAllowed = snapshot.javaDirtyPolicyKsuFileReadAllowed,
                 lsposedFileReadAllowed = snapshot.javaDirtyPolicyLsposedFileReadAllowed,
+                magiskDroidspacesdTransitionAllowed = snapshot.javaDirtyPolicyMagiskDroidspacesdTransitionAllowed,
+                suDroidspacesdTransitionAllowed = snapshot.javaDirtyPolicySuDroidspacesdTransitionAllowed,
+                systemServerDroidspacesdBinderCallAllowed = snapshot.javaDirtyPolicySystemServerDroidspacesdBinderCallAllowed,
                 msdAppDaemonConnectAllowed = snapshot.javaDirtyPolicyMsdAppDaemonConnectAllowed,
                 msdDaemonSelfConnectAllowed = snapshot.javaDirtyPolicyMsdDaemonSelfConnectAllowed,
                 msdDaemonSelinuxfsReadAllowed = snapshot.javaDirtyPolicyMsdDaemonSelinuxfsReadAllowed,
@@ -696,6 +769,9 @@ class SelinuxRepository(
         val magiskBinderCallAllowed: Boolean?,
         val ksuFileReadAllowed: Boolean?,
         val lsposedFileReadAllowed: Boolean?,
+        val magiskDroidspacesdTransitionAllowed: Boolean?,
+        val suDroidspacesdTransitionAllowed: Boolean?,
+        val systemServerDroidspacesdBinderCallAllowed: Boolean?,
         val msdAppDaemonConnectAllowed: Boolean?,
         val msdDaemonSelfConnectAllowed: Boolean?,
         val msdDaemonSelinuxfsReadAllowed: Boolean?,

@@ -68,6 +68,18 @@ class GenerateKeyReplyParcelParserTest {
     }
 
     @Test
+    fun `stable fingerprint accepts tee security level in last authorization`() {
+        val result = parser.parse(rawReply = variableCountGenerateModeReply(lastSecLevel = 4))
+
+        assertTrue(result.parseSucceeded)
+        assertEquals(4L, result.lastAuthorizationSecLevel)
+        assertEquals(1L, result.lastAuthorizationTag)
+        assertEquals(32L, result.lastAuthorizationUnionTag)
+        assertEquals(4_294_967_297L, result.modificationTimeMs)
+        assertTrue(result.matched)
+    }
+
+    @Test
     fun `normal fixture keeps non hit shape metadata`() {
         val result = parser.parse(rawReply = hexToBytes(NORMAL_REPLY_HEX))
 
@@ -106,11 +118,55 @@ class GenerateKeyReplyParcelParserTest {
     }
 
     @Test
+    fun `fingerprint matches when modification time is above high threshold`() {
+        val result = parser.parse(
+            rawReply = variableCountGenerateModeReply(
+                lastSecLevel = 20,
+                lastTag = 0x00000020,
+                lastUnionTag = 1,
+                modificationTimeMs = 5_000_000_000L,
+            ),
+        )
+
+        assertTrue(result.parseSucceeded)
+        assertEquals(5_000_000_000L, result.modificationTimeMs)
+        assertTrue(result.matched)
+    }
+
+    @Test
+    fun `fingerprint does not match at high threshold boundary without stable tuple`() {
+        val result = parser.parse(
+            rawReply = variableCountGenerateModeReply(
+                lastSecLevel = 20,
+                lastTag = 0x00000020,
+                lastUnionTag = 1,
+                modificationTimeMs = 4_999_999_999L,
+            ),
+        )
+
+        assertTrue(result.parseSucceeded)
+        assertEquals(4_999_999_999L, result.modificationTimeMs)
+        assertFalse(result.matched)
+    }
+
+    @Test
     fun `fingerprint does not match when last authorization security level differs`() {
         val result = parser.parse(rawReply = variableCountGenerateModeReply(lastSecLevel = 20))
 
         assertTrue(result.parseSucceeded)
         assertEquals(20L, result.lastAuthorizationSecLevel)
+        assertEquals(32L, result.lastAuthorizationUnionTag)
+        assertEquals(4_294_967_297L, result.modificationTimeMs)
+        assertFalse(result.matched)
+    }
+
+    @Test
+    fun `fingerprint does not match when last authorization tag differs`() {
+        val result = parser.parse(rawReply = variableCountGenerateModeReply(lastTag = 0x00000020))
+
+        assertTrue(result.parseSucceeded)
+        assertEquals(256L, result.lastAuthorizationSecLevel)
+        assertEquals(32L, result.lastAuthorizationTag)
         assertEquals(32L, result.lastAuthorizationUnionTag)
         assertEquals(4_294_967_297L, result.modificationTimeMs)
         assertFalse(result.matched)
@@ -153,6 +209,7 @@ class GenerateKeyReplyParcelParserTest {
     private fun variableCountGenerateModeReply(
         firstUnionTag: Int = 1,
         lastSecLevel: Int = 256,
+        lastTag: Int = 0x00000001,
         lastUnionTag: Int = 32,
         modificationTimeMs: Long = 4_294_967_297L,
     ): ByteArray {
@@ -162,7 +219,7 @@ class GenerateKeyReplyParcelParserTest {
             addIntLe(1)
             addIntLe(2)
             addAuthorization(secLevel = 1, tag = 0x00000020, unionTag = firstUnionTag, value = 1)
-            addAuthorization(secLevel = lastSecLevel, tag = 0x00000001, unionTag = lastUnionTag, value = 1)
+            addAuthorization(secLevel = lastSecLevel, tag = lastTag, unionTag = lastUnionTag, value = 1)
             addIntLe(1)
             addIntLe(1)
             add(0xAA.toByte())

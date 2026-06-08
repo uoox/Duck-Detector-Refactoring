@@ -143,6 +143,21 @@ internal object SelinuxContextValidityPayloadCodec {
                     .append(if (it) '1' else '0')
                     .append('\n')
             }
+            snapshot.dirtyPolicyMagiskDroidspacesdTransitionAllowed?.let {
+                append("DIRTY_POLICY_MAGISK_DROIDSPACESD_TRANSITION_ALLOWED=")
+                    .append(if (it) '1' else '0')
+                    .append('\n')
+            }
+            snapshot.dirtyPolicySuDroidspacesdTransitionAllowed?.let {
+                append("DIRTY_POLICY_SU_DROIDSPACESD_TRANSITION_ALLOWED=")
+                    .append(if (it) '1' else '0')
+                    .append('\n')
+            }
+            snapshot.dirtyPolicySystemServerDroidspacesdBinderCallAllowed?.let {
+                append("DIRTY_POLICY_SYSTEM_SERVER_DROIDSPACESD_BINDER_CALL_ALLOWED=")
+                    .append(if (it) '1' else '0')
+                    .append('\n')
+            }
             snapshot.dirtyPolicyMsdAppDaemonConnectAllowed?.let {
                 append("DIRTY_POLICY_MSD_APP_DAEMON_CONNECT_ALLOWED=")
                     .append(if (it) '1' else '0')
@@ -250,6 +265,21 @@ internal object SelinuxContextValidityPayloadCodec {
                     .append(if (it) '1' else '0')
                     .append('\n')
             }
+            snapshot.javaDirtyPolicyMagiskDroidspacesdTransitionAllowed?.let {
+                append("JAVA_DIRTY_POLICY_MAGISK_DROIDSPACESD_TRANSITION_ALLOWED=")
+                    .append(if (it) '1' else '0')
+                    .append('\n')
+            }
+            snapshot.javaDirtyPolicySuDroidspacesdTransitionAllowed?.let {
+                append("JAVA_DIRTY_POLICY_SU_DROIDSPACESD_TRANSITION_ALLOWED=")
+                    .append(if (it) '1' else '0')
+                    .append('\n')
+            }
+            snapshot.javaDirtyPolicySystemServerDroidspacesdBinderCallAllowed?.let {
+                append("JAVA_DIRTY_POLICY_SYSTEM_SERVER_DROIDSPACESD_BINDER_CALL_ALLOWED=")
+                    .append(if (it) '1' else '0')
+                    .append('\n')
+            }
             snapshot.javaDirtyPolicyMsdAppDaemonConnectAllowed?.let {
                 append("JAVA_DIRTY_POLICY_MSD_APP_DAEMON_CONNECT_ALLOWED=")
                     .append(if (it) '1' else '0')
@@ -290,6 +320,36 @@ internal object SelinuxContextValidityPayloadCodec {
             }
             snapshot.javaDirtyPolicyNotes.forEach { note ->
                 append("JAVA_DIRTY_POLICY_NOTE=").append(escapeValue(note)).append('\n')
+            }
+            append("POLICYLOAD_SEQNO_AVAILABLE=")
+                .append(if (snapshot.policyloadSeqnoAvailable) '1' else '0')
+                .append('\n')
+            append("POLICYLOAD_SEQNO_PROBE_ATTEMPTED=")
+                .append(if (snapshot.policyloadSeqnoProbeAttempted) '1' else '0')
+                .append('\n')
+            snapshot.policyloadSeqnoState?.takeIf { it.isNotEmpty() }?.let {
+                append("POLICYLOAD_SEQNO_STATE=").append(escapeValue(it)).append('\n')
+            }
+            snapshot.policyloadSeqnoCarrierContext?.takeIf { it.isNotEmpty() }?.let {
+                append("POLICYLOAD_SEQNO_CARRIER_CONTEXT=").append(escapeValue(it)).append('\n')
+            }
+            snapshot.policyloadSeqnoStatusSequence?.let {
+                append("POLICYLOAD_SEQNO_STATUS_SEQUENCE=").append(it).append('\n')
+            }
+            snapshot.policyloadSeqnoStatusPolicyload?.let {
+                append("POLICYLOAD_SEQNO_STATUS_POLICYLOAD=").append(it).append('\n')
+            }
+            snapshot.policyloadSeqnoAccessSeqno?.let {
+                append("POLICYLOAD_SEQNO_ACCESS_SEQNO=").append(it).append('\n')
+            }
+            snapshot.policyloadSeqnoProcessClass?.let {
+                append("POLICYLOAD_SEQNO_PROCESS_CLASS=").append(it).append('\n')
+            }
+            snapshot.policyloadSeqnoFailureReason?.takeIf { it.isNotEmpty() }?.let {
+                append("POLICYLOAD_SEQNO_FAILURE_REASON=").append(escapeValue(it)).append('\n')
+            }
+            snapshot.policyloadSeqnoNotes.forEach { note ->
+                append("POLICYLOAD_SEQNO_NOTE=").append(escapeValue(note)).append('\n')
             }
             append("PROC_ATTR_CURRENT_PROBE_ATTEMPTED=")
                 .append(if (snapshot.procAttrCurrentProbeAttempted) '1' else '0')

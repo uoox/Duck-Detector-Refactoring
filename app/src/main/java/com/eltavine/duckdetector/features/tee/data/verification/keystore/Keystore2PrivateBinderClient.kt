@@ -336,6 +336,18 @@ class Keystore2PrivateBinderClient {
         return getFieldValue(keyParameter, "tag") as? Int
     }
 
+    fun getAuthorizationIntValue(authorization: Any): Int? {
+        val keyParameter = getFieldValue(authorization, "keyParameter") ?: return null
+        return getKeyParameterIntValue(keyParameter)
+    }
+
+    fun getKeyOriginValue(name: String): Int? {
+        return runCatching {
+            val originClass = loadClass("android.hardware.security.keymint.KeyOrigin")
+            originClass.getField(name).getInt(null)
+        }.getOrNull()
+    }
+
     fun createKeyIdDescriptor(nspace: Long, aliasHint: String? = null): Any {
         val descriptorClass = loadClass(CLASS_KEY_DESCRIPTOR)
         val descriptor = descriptorClass.getDeclaredConstructor().newInstance()
@@ -402,11 +414,15 @@ class Keystore2PrivateBinderClient {
     }
 
     fun deleteKey(service: Any, keyDescriptor: Any) {
-        runCatching {
+        deleteKeyChecked(service, keyDescriptor)
+    }
+
+    fun deleteKeyChecked(service: Any, keyDescriptor: Any): Throwable? {
+        return runCatching {
             service.javaClass
                 .getMethod("deleteKey", keyDescriptor.javaClass)
                 .invoke(service, keyDescriptor)
-        }
+        }.exceptionOrNull()
     }
 
     fun listEntries(service: Any): Array<Any?> {
@@ -917,6 +933,23 @@ class Keystore2PrivateBinderClient {
         return rawReply
             .take(MAX_REPLY_PREFIX_BYTES)
             .joinToString(" ") { "%02X".format(it.toInt() and 0xFF) }
+    }
+
+    private fun getKeyParameterIntValue(keyParameter: Any): Int? {
+        val value = getFieldValue(keyParameter, "value") ?: return null
+        sequenceOf("getKeyPurpose", "getAlgorithm", "getOrigin", "getSecurityLevel", "getInteger")
+            .forEach { methodName ->
+                runCatching {
+                    val method = value.javaClass.getMethod(methodName)
+                    method.isAccessible = true
+                    return method.invoke(value) as? Int
+                }
+            }
+        sequenceOf("keyPurpose", "algorithm", "origin", "securityLevel", "integer")
+            .forEach { fieldName ->
+                (getFieldValue(value, fieldName) as? Int)?.let { return it }
+            }
+        return null
     }
 
     private fun generateKeyTransactionCode(): Int {

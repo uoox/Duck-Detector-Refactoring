@@ -27,6 +27,7 @@ import com.eltavine.duckdetector.features.selinux.domain.SelinuxPolicyWeakness
 import com.eltavine.duckdetector.features.selinux.domain.SelinuxReport
 import com.eltavine.duckdetector.features.selinux.domain.SelinuxStage
 import com.eltavine.duckdetector.features.selinux.data.probes.SelinuxContextValidityProbe
+import com.eltavine.duckdetector.features.selinux.data.probes.SelinuxPolicyloadSeqnoProbe
 import com.eltavine.duckdetector.features.selinux.data.probes.SelinuxProcAttrCurrentProbe
 import com.eltavine.duckdetector.features.selinux.ui.model.SelinuxCardModel
 import com.eltavine.duckdetector.features.selinux.ui.model.SelinuxDetailRowModel
@@ -57,10 +58,10 @@ class SelinuxCardModelMapper {
 
     private fun buildSubtitle(report: SelinuxReport): String {
         return when (report.stage) {
-            SelinuxStage.LOADING -> "sysfs + getenforce + proc attr + app_zygote attr write + context oracle + policy + audit"
+            SelinuxStage.LOADING -> "sysfs + getenforce + proc attr + app_zygote zygotePreload seqno + context oracle + policy + audit"
             SelinuxStage.FAILED -> "local status probe failed"
             SelinuxStage.READY -> buildString {
-                append("6 local checks")
+                append("7 local checks")
                 if (report.policyAnalysis != null) {
                     append(" + policy")
                 }
@@ -74,6 +75,7 @@ class SelinuxCardModelMapper {
     private fun buildVerdict(report: SelinuxReport): String {
         val contextValidity = contextValidityResult(report)
         val procAttrCurrent = procAttrCurrentResult(report)
+        val policyloadSeqno = policyloadSeqnoResult(report)
         val dirtyPolicyHit = firstTrustedPolicyRuleHit(report)
         val repeatabilityFailed =
             contextValidity?.details?.contains("repeatability failed", ignoreCase = true) == true
@@ -86,6 +88,7 @@ class SelinuxCardModelMapper {
                     report.auditIntegrity?.state == SelinuxAuditIntegrityState.TAMPERED -> "Enforcing with audit rewrite"
                     contextValidity?.status == SelinuxContextValidityProbe.BITPAIR_KSU_PRESENT ->
                         "Enforcing with KSU context materialized"
+                    policyloadSeqno?.isSecure == false -> "Enforcing with app_zygote seqno split"
                     procAttrCurrent?.isSecure == false -> "Enforcing with app_zygote attr-write anomaly"
                     dirtyPolicyHit != null -> trustedPolicyRuleVerdict()
                     appZygoteCarrierState == AppZygoteCarrierSupportState.UNTRUSTED ->
@@ -121,6 +124,7 @@ class SelinuxCardModelMapper {
     private fun buildSummary(report: SelinuxReport): String {
         val contextValidity = contextValidityResult(report)
         val procAttrCurrent = procAttrCurrentResult(report)
+        val policyloadSeqno = policyloadSeqnoResult(report)
         val dirtyPolicyHit = firstTrustedPolicyRuleHit(report)
         val repeatabilityFailed =
             contextValidity?.details?.contains("repeatability failed", ignoreCase = true) == true
@@ -158,6 +162,9 @@ class SelinuxCardModelMapper {
                                     procAttrCurrent.status.removePrefix("Detected: ")
                                 }.",
                             )
+                        }
+                        if (policyloadSeqno?.isSecure == false) {
+                            add("The zygotePreload app_zygote carrier observed a policyload/access seqno split; treat this as KernelSU-specific evidence bounded to the preload carrier.")
                         }
                         if (dirtyPolicyHit != null) {
                             add(trustedPolicyRuleSummary(dirtyPolicyHit))
@@ -328,6 +335,7 @@ class SelinuxCardModelMapper {
     private fun buildImpactItems(report: SelinuxReport): List<SelinuxImpactItemModel> {
         val contextValidity = contextValidityResult(report)
         val procAttrCurrent = procAttrCurrentResult(report)
+        val policyloadSeqno = policyloadSeqnoResult(report)
         val dirtyPolicyHit = firstTrustedPolicyRuleHit(report)
         val repeatabilityFailed =
             contextValidity?.details?.contains("repeatability failed", ignoreCase = true) == true
@@ -474,6 +482,22 @@ class SelinuxCardModelMapper {
             else -> Unit
         }
         when {
+            policyloadSeqno?.isSecure == false -> items += SelinuxImpactItemModel(
+                "The zygotePreload app_zygote carrier observed a policyload/access seqno split.",
+                DetectorStatus.danger(),
+            )
+
+            policyloadSeqno?.isSecure == true -> items += SelinuxImpactItemModel(
+                "The zygotePreload app_zygote carrier reported a coherent policyload/access seqno contract.",
+                DetectorStatus.allClear(),
+            )
+
+            policyloadSeqno != null -> items += SelinuxImpactItemModel(
+                policyloadSeqno.details ?: "The zygotePreload app_zygote seqno oracle stayed unavailable.",
+                DetectorStatus.info(InfoKind.SUPPORT),
+            )
+        }
+        when {
             procAttrCurrent?.isSecure == false -> items += SelinuxImpactItemModel(
                 "The dedicated app_zygote carrier observed anomalous /proc/self/attr/current writes for ${procAttrCurrent.status.removePrefix("Detected: ")}.",
                 DetectorStatus.danger(),
@@ -500,13 +524,20 @@ class SelinuxCardModelMapper {
 
     private fun buildMethodRows(report: SelinuxReport): List<SelinuxDetailRowModel> {
         val msdRows = report.methods.filter { isMsdPolicyRuleMethod(it.method) }
+        val droidspacesRows = report.methods.filter { isDroidspacesPolicyRuleMethod(it.method) }
         var msdInserted = false
+        var droidspacesInserted = false
         return buildList {
             report.methods.forEach { result ->
                 if (isMsdPolicyRuleMethod(result.method)) {
                     if (!msdInserted) {
                         buildAggregatedMsdMethodRow(msdRows)?.let(::add)
                         msdInserted = true
+                    }
+                } else if (isDroidspacesPolicyRuleMethod(result.method)) {
+                    if (!droidspacesInserted) {
+                        buildAggregatedDroidspacesMethodRow(droidspacesRows)?.let(::add)
+                        droidspacesInserted = true
                     }
                 } else {
                     add(methodRow(result))
@@ -533,6 +564,57 @@ class SelinuxCardModelMapper {
         val unavailable = results.filter { it.status == "Unavailable" }.map { msdPolicyRuleName(it.method) }
         val aggregateResult = SelinuxCheckResult(
             method = "Dirty sepolicy rule: MSD",
+            status = when {
+                allowed.isNotEmpty() -> "Allowed"
+                unavailable.isNotEmpty() -> "Unavailable"
+                else -> "Denied"
+            },
+            isSecure = when {
+                allowed.isNotEmpty() -> false
+                unavailable.isNotEmpty() -> null
+                else -> true
+            },
+            permissionDenied = results.all { it.permissionDenied },
+            details = null,
+            dirtyPolicyTrusted = results.any { it.dirtyPolicyTrusted },
+        )
+        return SelinuxDetailRowModel(
+            label = aggregateResult.method,
+            value = buildList {
+                if (allowed.isNotEmpty()) {
+                    add("${allowed.size} allowed")
+                }
+                if (denied.isNotEmpty()) {
+                    add("${denied.size} denied")
+                }
+                if (unavailable.isNotEmpty()) {
+                    add("${unavailable.size} unavailable")
+                }
+            }.joinToString(", "),
+            status = methodStatus(aggregateResult),
+            detail = buildList {
+                if (allowed.isNotEmpty()) {
+                    add("Allowed: ${allowed.joinToString()}")
+                }
+                if (denied.isNotEmpty()) {
+                    add("Denied: ${denied.joinToString()}")
+                }
+                if (unavailable.isNotEmpty()) {
+                    add("Unavailable: ${unavailable.joinToString()}")
+                }
+            }.joinToString(" | "),
+        )
+    }
+
+    private fun buildAggregatedDroidspacesMethodRow(results: List<SelinuxCheckResult>): SelinuxDetailRowModel? {
+        if (results.isEmpty()) {
+            return null
+        }
+        val allowed = results.filter { it.status == "Allowed" }.map { droidspacesPolicyRuleName(it.method) }
+        val denied = results.filter { it.status == "Denied" }.map { droidspacesPolicyRuleName(it.method) }
+        val unavailable = results.filter { it.status == "Unavailable" }.map { droidspacesPolicyRuleName(it.method) }
+        val aggregateResult = SelinuxCheckResult(
+            method = "Dirty sepolicy rule: Droidspaces",
             status = when {
                 allowed.isNotEmpty() -> "Allowed"
                 unavailable.isNotEmpty() -> "Unavailable"
@@ -825,6 +907,7 @@ class SelinuxCardModelMapper {
             "Production Android devices are expected to run enforcing SELinux.",
             "app_zygote can query SELinux context validity through selinux_check_context, which ultimately writes to /sys/fs/selinux/context.",
             "A dedicated app_zygote carrier can also probe privileged context materialization by writing candidate labels to /proc/self/attr/current and classifying non-EINVAL outcomes.",
+            "The policyload/access seqno oracle must be captured inside zygotePreloadName; the isolated child may lose app_zygote SELinuxfs access and should downgrade missing coverage to info.",
             "Audit or log surfaces can be rewritten in user space, so missing suspicious tcontext values is not always proof.",
             "Readable AVC denial lines should be treated as audit-surface leakage, not as direct proof of a root process.",
             "comm, exe, path, and name fields inside AVC logs are supporting hints, not standalone proof of a live su daemon.",
@@ -866,6 +949,13 @@ class SelinuxCardModelMapper {
             }
         }
         if (result.method == SelinuxProcAttrCurrentProbe.METHOD_LABEL) {
+            return when {
+                result.isSecure == false -> DetectorStatus.danger()
+                result.isSecure == true -> DetectorStatus.allClear()
+                else -> DetectorStatus.info(InfoKind.SUPPORT)
+            }
+        }
+        if (result.method == SelinuxPolicyloadSeqnoProbe.METHOD_LABEL) {
             return when {
                 result.isSecure == false -> DetectorStatus.danger()
                 result.isSecure == true -> DetectorStatus.allClear()
@@ -935,9 +1025,14 @@ class SelinuxCardModelMapper {
         return report.methods.firstOrNull { it.method == SelinuxProcAttrCurrentProbe.METHOD_LABEL }
     }
 
+    private fun policyloadSeqnoResult(report: SelinuxReport): SelinuxCheckResult? {
+        return report.methods.firstOrNull { it.method == SelinuxPolicyloadSeqnoProbe.METHOD_LABEL }
+    }
+
     private fun SelinuxReport.toDetectorStatus(): DetectorStatus {
         val contextValidity = contextValidityResult(this)
         val procAttrCurrent = procAttrCurrentResult(this)
+        val policyloadSeqno = policyloadSeqnoResult(this)
         val dirtyPolicyHit = firstTrustedPolicyRuleHit(this)
         val appZygoteCarrierState = contextValiditySupportState(contextValidity)
         return when (stage) {
@@ -947,6 +1042,7 @@ class SelinuxCardModelMapper {
                 SelinuxMode.ENFORCING -> when {
                     auditIntegrity?.state == SelinuxAuditIntegrityState.TAMPERED -> DetectorStatus.danger()
                     contextValidity?.status == SelinuxContextValidityProbe.BITPAIR_KSU_PRESENT -> DetectorStatus.danger()
+                    policyloadSeqno?.isSecure == false -> DetectorStatus.danger()
                     procAttrCurrent?.isSecure == false -> DetectorStatus.danger()
                     dirtyPolicyHit != null -> DetectorStatus.warning()
                     appZygoteCarrierState == AppZygoteCarrierSupportState.UNTRUSTED -> DetectorStatus.warning()
@@ -978,6 +1074,7 @@ class SelinuxCardModelMapper {
 
     private fun isPolicyRuleMethod(method: String): Boolean {
         return method.startsWith("Dirty sepolicy rule: ") ||
+            method.startsWith("Droidspaces checker: ") ||
             method.startsWith("MSD checker: ")
     }
 
@@ -985,9 +1082,14 @@ class SelinuxCardModelMapper {
         return method.startsWith("MSD checker: ")
     }
 
+    private fun isDroidspacesPolicyRuleMethod(method: String): Boolean {
+        return method.startsWith("Droidspaces checker: ")
+    }
+
     private fun policyRuleDisplayName(method: String): String {
         return when {
             method.startsWith("Dirty sepolicy rule: ") -> method.removePrefix("Dirty sepolicy rule: ")
+            method.startsWith("Droidspaces checker: ") -> "Droidspaces: ${method.removePrefix("Droidspaces checker: ")}"
             method.startsWith("MSD checker: ") -> "MSD: ${method.removePrefix("MSD checker: ")}"
             else -> method
         }
@@ -995,6 +1097,10 @@ class SelinuxCardModelMapper {
 
     private fun msdPolicyRuleName(method: String): String {
         return method.removePrefix("MSD checker: ")
+    }
+
+    private fun droidspacesPolicyRuleName(method: String): String {
+        return method.removePrefix("Droidspaces checker: ")
     }
 
     private fun trustedPolicyRuleVerdict(): String {

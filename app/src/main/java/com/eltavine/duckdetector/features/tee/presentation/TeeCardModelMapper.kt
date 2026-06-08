@@ -47,6 +47,7 @@ class TeeCardModelMapper {
             status = status,
             verdict = report.headline,
             summary = report.summary,
+            findingDetail = report.topFindingDetail(),
             rkpBadgeLabel = rkpBadgeLabel(report),
             isExpanded = isExpanded,
             headerFacts = buildHeaderFacts(report, status),
@@ -147,6 +148,64 @@ class TeeCardModelMapper {
             null
         }
 
+    private fun TeeReport.topFindingDetail(): String? {
+        if (
+            !summary.contains("Grant self-domain") &&
+            !summary.contains("Grant isolated-domain") &&
+            !summary.contains("Grant handle")
+        ) {
+            return null
+        }
+        // Grant stage details can include Java/hidden/private summaries. Keep that audit text inside
+        // the TEE card; Dashboard top findings should be a short routing hint, not a diagnostic dump.
+        // Grant 阶段细节可能包含 Java/hidden/private 摘要。审计文本留在 TEE 卡片内；Dashboard 顶层 finding 只给短路由提示，不承载诊断 dump。
+        val grantFailure = sections
+            .asSequence()
+            .flatMap { section -> section.items.asSequence() }
+            .firstOrNull { item ->
+                item.level == TeeSignalLevel.FAIL &&
+                    (
+                        item.title == "Grant self-domain" ||
+                            item.title == "Grant isolated-domain" ||
+                            item.title == "Grant caller binding"
+                        )
+            }
+            ?: sections
+                .asSequence()
+                .flatMap { section -> section.items.asSequence() }
+                .firstOrNull { item ->
+                    item.level == TeeSignalLevel.WARN &&
+                        (
+                            item.title == "Grant self-domain" ||
+                                item.title == "Grant isolated-domain" ||
+                                item.title == "Grant caller binding"
+                            )
+                }
+                ?: return null
+
+        val keyVisibilityDiverged =
+            summary.contains("key visibility", ignoreCase = true) ||
+                grantFailure.body.contains("key visibility", ignoreCase = true) ||
+                grantFailure.body.contains("KEY_NOT_FOUND", ignoreCase = true)
+        return when (grantFailure.title) {
+            "Grant self-domain" -> if (keyVisibilityDiverged) {
+                "Grant self-domain key visibility diverged; open TEE details for stage diagnostics."
+            } else {
+                "Grant self-domain certificate chain diverged; open TEE details for stage diagnostics."
+            }
+            "Grant isolated-domain" -> if (keyVisibilityDiverged) {
+                "Grant isolated-domain key visibility diverged; open TEE details for stage diagnostics."
+            } else if (grantFailure.level == TeeSignalLevel.WARN) {
+                "Grant isolated-domain runtime crash; open TEE details for stage diagnostics."
+            } else {
+                "Grant isolated-domain certificate chain diverged; open TEE details for stage diagnostics."
+            }
+            "Grant caller binding" ->
+                "Grant handle caller binding failed; open TEE details for stage diagnostics."
+            else -> null
+        }
+    }
+
     private fun trustRootValue(report: TeeReport): String = when (report.trustRoot) {
         TeeTrustRoot.GOOGLE_RKP -> "Google"
         TeeTrustRoot.GOOGLE -> "Google"
@@ -194,36 +253,18 @@ class TeeCardModelMapper {
 
     private fun TeeReport.toDetectorStatus(): DetectorStatus = when (verdict) {
         TeeVerdict.LOADING -> DetectorStatus.info(InfoKind.SUPPORT)
-        TeeVerdict.CONSISTENT -> when {
-            // 这些本地信号虽然还挂在 CONSISTENT verdict 之下，但安全语义已经达到红卡级别，所以卡片状态要透传为 danger。
-            // These local signals still live under a CONSISTENT verdict, but their security meaning is red-card level, so the card status must escalate to danger.
-            hasDangerLocalEscalation() -> DetectorStatus.danger()
+        TeeVerdict.CONSISTENT,
+        TeeVerdict.SUSPICIOUS -> when {
+            // Dashboard aggregates only TeeCardModel.status; consume reducer structure, not prose or row titles.
+            // Dashboard 只聚合 TeeCardModel.status；这里消费 reducer 的结构化级别，不解析文案或行标题。
+            supplementaryReviewLevel == TeeSignalLevel.FAIL -> DetectorStatus.danger()
+            supplementaryReviewLevel == TeeSignalLevel.WARN -> DetectorStatus.warning()
+            verdict == TeeVerdict.SUSPICIOUS -> DetectorStatus.warning()
             supplementaryIndicatorCount > 0 -> DetectorStatus.warning()
             else -> DetectorStatus.allClear()
         }
-        TeeVerdict.SUSPICIOUS -> DetectorStatus.warning()
         TeeVerdict.TAMPERED, TeeVerdict.BROKEN -> DetectorStatus.danger()
         TeeVerdict.INCONCLUSIVE -> DetectorStatus.info(InfoKind.ERROR)
-    }
-
-    private fun TeeReport.hasDangerLocalEscalation(): Boolean {
-        return sections.asSequence()
-            .flatMap { it.items.asSequence() }
-            .any { item ->
-                // 这里只把已经收敛成“恶意模块指纹”语义的强本地证据透传成 danger，普通 supplementary review 仍保持 warning。
-                // Only escalate locally conclusive malicious-module fingerprint findings to danger; ordinary supplementary review stays at warning.
-                when (item.title) {
-                    "Timing side-channel" -> item.level == TeeSignalLevel.FAIL && (
-                        item.body.contains("Detected malicious-module fingerprint", ignoreCase = true)
-                        )
-
-                    "TEE Simulator generate-mode fingerprint" ->
-                        item.level == TeeSignalLevel.FAIL &&
-                            item.body.contains("Matched TEE Simulator generate-mode fingerprint.", ignoreCase = true)
-
-                    else -> false
-                }
-            }
     }
 
     private fun TeeReport.tierStatus(): DetectorStatus = when (tier) {

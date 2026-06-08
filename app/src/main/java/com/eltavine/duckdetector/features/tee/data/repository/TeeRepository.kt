@@ -36,6 +36,7 @@ import com.eltavine.duckdetector.features.tee.data.verification.keystore.BinderC
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.BinderHookBootstrapProbe
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.BinderPatchModeProbe
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.BiometricTeeIntegrationProbe
+import com.eltavine.duckdetector.features.tee.data.verification.keystore.ImportKeyRetainedAttestationNarrativeProbe
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.KeyLifecycleProbe
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.KeyMetadataSemanticsProbe
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.KeyMetadataShapeProbe
@@ -43,6 +44,16 @@ import com.eltavine.duckdetector.features.tee.data.verification.keystore.KeyPair
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.KeyboxImportProbe
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.Keystore2GenerateModeParcelFingerprintProbe
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.Keystore2HookProbe
+import com.eltavine.duckdetector.features.tee.data.verification.keystore.GrantDomainFullChainSplitProbe
+import com.eltavine.duckdetector.features.tee.data.verification.keystore.GrantDomainAnomalyKind
+import com.eltavine.duckdetector.features.tee.data.verification.keystore.GrantDomainFullChainSplitResult
+import com.eltavine.duckdetector.features.tee.data.verification.keystore.GrantSelfDomainFullChainSplitProbe
+import com.eltavine.duckdetector.features.tee.data.verification.keystore.GrantSelfDomainAnomalyKind
+import com.eltavine.duckdetector.features.tee.data.verification.keystore.GrantSelfDomainFullChainSplitResult
+import com.eltavine.duckdetector.features.tee.data.verification.keystore.SyntheticGrantGetKeyEntryAccessVectorBlindnessProbe
+import com.eltavine.duckdetector.features.tee.data.verification.keystore.SyntheticGrantGranteeBlindReadbackAnomalyKind
+import com.eltavine.duckdetector.features.tee.data.verification.keystore.SyntheticGrantGranteeBlindReadbackProbe
+import com.eltavine.duckdetector.features.tee.data.verification.keystore.SyntheticGrantGranteeBlindReadbackResult
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.LegacyKeystorePathProbe
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.ListEntriesBatchedProbe
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.ListEntriesConsistencyProbe
@@ -54,6 +65,7 @@ import com.eltavine.duckdetector.features.tee.data.verification.keystore.PureCer
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.TimingAnomalyProbe
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.TimingSideChannelProbe
 import com.eltavine.duckdetector.features.tee.data.verification.keystore.UpdateSubcomponentProbe
+import com.eltavine.duckdetector.features.tee.data.verification.keystore.UpdateSubcomponentStaleResponsePersistenceProbe
 import com.eltavine.duckdetector.features.tee.data.verification.rkp.RkpExtensionAnalyzer
 import com.eltavine.duckdetector.features.tee.data.verification.strongbox.StrongBoxBehaviorProbeSuite
 import com.eltavine.duckdetector.features.tee.domain.TeeReport
@@ -85,8 +97,15 @@ class TeeRepository(
     private val timingSideChannelProbe = TimingSideChannelProbe()
     private val oversizedChallengeProbe = OversizedChallengeProbe()
     private val keyboxImportProbe = KeyboxImportProbe(appContext)
+    private val importKeyRetainedAttestationNarrativeProbe =
+        ImportKeyRetainedAttestationNarrativeProbe(appContext)
     private val keystore2HookProbe = Keystore2HookProbe()
     private val generateModeParcelFingerprintProbe = Keystore2GenerateModeParcelFingerprintProbe()
+    private val grantDomainFullChainSplitProbe = GrantDomainFullChainSplitProbe(appContext)
+    private val grantSelfDomainFullChainSplitProbe = GrantSelfDomainFullChainSplitProbe(appContext)
+    private val syntheticGrantGranteeBlindReadbackProbe = SyntheticGrantGranteeBlindReadbackProbe(appContext)
+    private val syntheticGrantGetKeyEntryAccessVectorBlindnessProbe =
+        SyntheticGrantGetKeyEntryAccessVectorBlindnessProbe(appContext)
     private val legacyKeystorePathProbe = LegacyKeystorePathProbe()
     private val listEntriesConsistencyProbe = ListEntriesConsistencyProbe()
     private val listEntriesBatchedProbe = ListEntriesBatchedProbe()
@@ -100,6 +119,8 @@ class TeeRepository(
     private val binderPatchModeProbe = BinderPatchModeProbe()
     private val binderChainConsistencyProbe = BinderChainConsistencyProbe()
     private val updateSubcomponentProbe = UpdateSubcomponentProbe()
+    private val updateSubcomponentStaleResponsePersistenceProbe =
+        UpdateSubcomponentStaleResponsePersistenceProbe(appContext)
     private val operationPruningProbe = OperationPruningProbe()
     private val dualAlgorithmProbe = DualAlgorithmChainProbe(trustAnalyzer)
     private val idAttestationProbe = IdAttestationProbe()
@@ -147,8 +168,14 @@ class TeeRepository(
                     timingSideChannel = deepChecks.timingSideChannel,
                     oversizedChallenge = deepChecks.oversizedChallenge,
                     keyboxImport = deepChecks.keyboxImport,
+                    importKeyRetainedAttestationNarrative = deepChecks.importKeyRetainedAttestationNarrative,
                     keystore2Hook = deepChecks.keystore2Hook,
                     generateModeParcelFingerprint = deepChecks.generateModeParcelFingerprint,
+                    grantDomainFullChainSplit = deepChecks.grantDomainFullChainSplit,
+                    syntheticGrantGranteeBlindReadback = deepChecks.syntheticGrantGranteeBlindReadback,
+                    syntheticGrantGetKeyEntryAccessVectorBlindness =
+                        deepChecks.syntheticGrantGetKeyEntryAccessVectorBlindness,
+                    grantSelfDomainFullChainSplit = deepChecks.grantSelfDomainFullChainSplit,
                     legacyKeystorePath = deepChecks.legacyKeystorePath,
                     listEntriesConsistency = deepChecks.listEntriesConsistency,
                     listEntriesBatched = deepChecks.listEntriesBatched,
@@ -162,6 +189,8 @@ class TeeRepository(
                     binderPatchMode = deepChecks.binderPatchMode,
                     binderChainConsistency = deepChecks.binderChainConsistency,
                     updateSubcomponent = deepChecks.updateSubcomponent,
+                    updateSubcomponentStaleResponsePersistence =
+                        deepChecks.updateSubcomponentStaleResponsePersistence,
                     pruning = deepChecks.pruning,
                     dualAlgorithm = deepChecks.dualAlgorithm,
                     idAttestation = deepChecks.idAttestation,
@@ -192,6 +221,11 @@ class TeeRepository(
         val timing = async { timingProbe.inspect(useStrongBox = useStrongBox) }
         val oversizedChallenge = async { oversizedChallengeProbe.inspect(useStrongBox = useStrongBox) }
         val keyboxImport = async { keyboxImportProbe.inspect() }
+        // Run after keybox import fixtures are available, but keep it independent so unsupported importKey paths degrade to INFO only.
+        // 放在 keybox import fixture 可用之后独立执行；importKey 不可观测时只降级为 INFO，不影响主扫描。
+        val importKeyRetainedAttestationNarrative = async {
+            importKeyRetainedAttestationNarrativeProbe.inspect()
+        }
         val keystore2Hook = async { keystore2HookProbe.inspect() }
         val listEntriesConsistency = async { listEntriesConsistencyProbe.inspect() }
         val listEntriesBatched = async { listEntriesBatchedProbe.inspect() }
@@ -215,6 +249,7 @@ class TeeRepository(
         val timingResult = timing.await()
         val oversizedChallengeResult = oversizedChallenge.await()
         val keyboxImportResult = keyboxImport.await()
+        val importKeyRetainedAttestationNarrativeResult = importKeyRetainedAttestationNarrative.await()
         val keystore2HookResult = keystore2Hook.await()
         val listEntriesConsistencyResult = listEntriesConsistency.await()
         val listEntriesBatchedResult = listEntriesBatched.await()
@@ -231,10 +266,32 @@ class TeeRepository(
         val strongBoxResult = strongBox.await()
 
         val generateModeParcelFingerprint = generateModeParcelFingerprintProbe.inspect()
+        val grantDomainFullChainSplit = grantDomainFullChainSplitProbe.inspect(useStrongBox = useStrongBox)
+        val grantSelfDomainFullChainSplit = grantSelfDomainFullChainSplitProbe.inspect(useStrongBox = useStrongBox)
+        val syntheticGrantGranteeBlindReadback =
+            if (grantDomainFullChainSplit.hasDanger() || grantSelfDomainFullChainSplit.hasDanger()) {
+                SyntheticGrantGranteeBlindReadbackProbe.skippedAfterExistingGrantDanger()
+            } else {
+                syntheticGrantGranteeBlindReadbackProbe.inspect(useStrongBox = useStrongBox)
+            }
+        val syntheticGrantGetKeyEntryAccessVectorBlindness =
+            if (
+                grantDomainFullChainSplit.hasDanger() ||
+                grantSelfDomainFullChainSplit.hasDanger() ||
+                syntheticGrantGranteeBlindReadback.hasDanger()
+            ) {
+                SyntheticGrantGetKeyEntryAccessVectorBlindnessProbe.skippedAfterExistingGrantDanger()
+            } else {
+                syntheticGrantGetKeyEntryAccessVectorBlindnessProbe.inspect(useStrongBox = useStrongBox)
+            }
         val legacyKeystorePath = legacyKeystorePathProbe.inspect()
         val binderHookBootstrap = binderHookBootstrapProbe.inspect()
         val binderPatchMode = binderPatchModeProbe.inspect()
         val binderChainConsistency = binderChainConsistencyProbe.inspect()
+        // Run after the basic update failure probe: this one judges successful KEY_ID update persistence, not update failure itself.
+        // 放在基础 update 失败探针之后：此探针判断成功 KEY_ID update 后的持久叙事，而不是 update 失败本身。
+        val updateSubcomponentStaleResponsePersistence =
+            updateSubcomponentStaleResponsePersistenceProbe.inspect(useStrongBox = useStrongBox)
 
         DeferredChecks(
             pairConsistency = pairConsistencyResult,
@@ -244,8 +301,13 @@ class TeeRepository(
             timingSideChannel = timingSideChannel,
             oversizedChallenge = oversizedChallengeResult,
             keyboxImport = keyboxImportResult,
+            importKeyRetainedAttestationNarrative = importKeyRetainedAttestationNarrativeResult,
             keystore2Hook = keystore2HookResult,
             generateModeParcelFingerprint = generateModeParcelFingerprint,
+            grantDomainFullChainSplit = grantDomainFullChainSplit,
+            syntheticGrantGranteeBlindReadback = syntheticGrantGranteeBlindReadback,
+            syntheticGrantGetKeyEntryAccessVectorBlindness = syntheticGrantGetKeyEntryAccessVectorBlindness,
+            grantSelfDomainFullChainSplit = grantSelfDomainFullChainSplit,
             legacyKeystorePath = legacyKeystorePath,
             listEntriesConsistency = listEntriesConsistencyResult,
             listEntriesBatched = listEntriesBatchedResult,
@@ -259,6 +321,7 @@ class TeeRepository(
             binderPatchMode = binderPatchMode,
             binderChainConsistency = binderChainConsistency,
             updateSubcomponent = updateSubcomponentResult,
+            updateSubcomponentStaleResponsePersistence = updateSubcomponentStaleResponsePersistence,
             pruning = pruningResult,
             dualAlgorithm = dualAlgorithmResult,
             idAttestation = idAttestationResult,
@@ -266,6 +329,20 @@ class TeeRepository(
         )
     }
 
+}
+
+private fun GrantDomainFullChainSplitResult.hasDanger(): Boolean {
+    return anomalyKind == GrantDomainAnomalyKind.ISOLATED_CHAIN_SPLIT ||
+        anomalyKind == GrantDomainAnomalyKind.ISOLATED_GRANT_KEY_NOT_FOUND_AFTER_OWNER_CHAIN
+}
+
+private fun GrantSelfDomainFullChainSplitResult.hasDanger(): Boolean {
+    return anomalyKind == GrantSelfDomainAnomalyKind.SELF_CHAIN_SPLIT ||
+        anomalyKind == GrantSelfDomainAnomalyKind.SELF_GRANT_KEY_NOT_FOUND_AFTER_OWNER_CHAIN
+}
+
+private fun SyntheticGrantGranteeBlindReadbackResult.hasDanger(): Boolean {
+    return anomalyKind == SyntheticGrantGranteeBlindReadbackAnomalyKind.NON_GRANTEE_READBACK_ALLOWED
 }
 
 private data class DeferredChecks(
@@ -276,8 +353,13 @@ private data class DeferredChecks(
     val timingSideChannel: com.eltavine.duckdetector.features.tee.data.verification.keystore.TimingSideChannelResult,
     val oversizedChallenge: com.eltavine.duckdetector.features.tee.data.verification.keystore.OversizedChallengeResult,
     val keyboxImport: com.eltavine.duckdetector.features.tee.data.verification.keystore.KeyboxImportResult,
+    val importKeyRetainedAttestationNarrative: com.eltavine.duckdetector.features.tee.data.verification.keystore.ImportKeyRetainedAttestationNarrativeResult,
     val keystore2Hook: com.eltavine.duckdetector.features.tee.data.verification.keystore.Keystore2HookResult,
     val generateModeParcelFingerprint: com.eltavine.duckdetector.features.tee.data.verification.keystore.Keystore2GenerateModeParcelFingerprintResult,
+    val grantDomainFullChainSplit: com.eltavine.duckdetector.features.tee.data.verification.keystore.GrantDomainFullChainSplitResult,
+    val syntheticGrantGranteeBlindReadback: com.eltavine.duckdetector.features.tee.data.verification.keystore.SyntheticGrantGranteeBlindReadbackResult,
+    val syntheticGrantGetKeyEntryAccessVectorBlindness: com.eltavine.duckdetector.features.tee.data.verification.keystore.SyntheticGrantGetKeyEntryAccessVectorBlindnessResult,
+    val grantSelfDomainFullChainSplit: com.eltavine.duckdetector.features.tee.data.verification.keystore.GrantSelfDomainFullChainSplitResult,
     val legacyKeystorePath: com.eltavine.duckdetector.features.tee.data.verification.keystore.LegacyKeystorePathResult,
     val listEntriesConsistency: com.eltavine.duckdetector.features.tee.data.verification.keystore.ListEntriesConsistencyResult,
     val listEntriesBatched: com.eltavine.duckdetector.features.tee.data.verification.keystore.ListEntriesBatchedResult,
@@ -291,6 +373,7 @@ private data class DeferredChecks(
     val binderPatchMode: com.eltavine.duckdetector.features.tee.data.verification.keystore.BinderPatchModeResult,
     val binderChainConsistency: com.eltavine.duckdetector.features.tee.data.verification.keystore.BinderChainConsistencyResult,
     val updateSubcomponent: com.eltavine.duckdetector.features.tee.data.verification.keystore.UpdateSubcomponentResult,
+    val updateSubcomponentStaleResponsePersistence: com.eltavine.duckdetector.features.tee.data.verification.keystore.UpdateSubcomponentStaleResponsePersistenceResult,
     val pruning: com.eltavine.duckdetector.features.tee.data.verification.keystore.OperationPruningResult,
     val dualAlgorithm: com.eltavine.duckdetector.features.tee.data.verification.certificate.DualAlgorithmChainResult,
     val idAttestation: com.eltavine.duckdetector.features.tee.data.verification.keystore.IdAttestationResult,
@@ -333,6 +416,10 @@ private data class DeferredChecks(
                 marker = com.eltavine.duckdetector.features.tee.data.verification.keystore.KeyboxImportProbe.FIXTURE_MARKER,
                 detail = "Keybox import probe skipped.",
             ),
+            importKeyRetainedAttestationNarrative = com.eltavine.duckdetector.features.tee.data.verification.keystore.ImportKeyRetainedAttestationNarrativeResult(
+                executed = false,
+                detail = "ImportKey retained attestation narrative probe skipped.",
+            ),
             keystore2Hook = com.eltavine.duckdetector.features.tee.data.verification.keystore.Keystore2HookResult(
                 available = false,
                 detail = "Keystore2 hook probe skipped.",
@@ -340,6 +427,19 @@ private data class DeferredChecks(
             generateModeParcelFingerprint = com.eltavine.duckdetector.features.tee.data.verification.keystore.Keystore2GenerateModeParcelFingerprintResult(
                 executed = false,
                 detail = "Keystore2 generate-mode parcel fingerprint probe skipped.",
+            ),
+            grantDomainFullChainSplit = com.eltavine.duckdetector.features.tee.data.verification.keystore.GrantDomainFullChainSplitResult(
+                detail = "Grant-domain full-chain split probe skipped.",
+            ),
+            syntheticGrantGranteeBlindReadback = com.eltavine.duckdetector.features.tee.data.verification.keystore.SyntheticGrantGranteeBlindReadbackResult(
+                detail = "Grant caller-binding private binder probe skipped.",
+            ),
+            syntheticGrantGetKeyEntryAccessVectorBlindness =
+                com.eltavine.duckdetector.features.tee.data.verification.keystore.SyntheticGrantGetKeyEntryAccessVectorBlindnessResult(
+                    detail = "Grant access-vector private binder probe skipped.",
+                ),
+            grantSelfDomainFullChainSplit = com.eltavine.duckdetector.features.tee.data.verification.keystore.GrantSelfDomainFullChainSplitResult(
+                detail = "Grant self-domain full-chain split probe skipped.",
             ),
             legacyKeystorePath = com.eltavine.duckdetector.features.tee.data.verification.keystore.LegacyKeystorePathResult(
                 executed = false,
@@ -394,6 +494,10 @@ private data class DeferredChecks(
                 keyNotFoundStyleFailure = false,
                 detail = "Update subcomponent probe skipped.",
             ),
+            updateSubcomponentStaleResponsePersistence =
+                com.eltavine.duckdetector.features.tee.data.verification.keystore.UpdateSubcomponentStaleResponsePersistenceResult(
+                    detail = "UpdateSubcomponent stale response persistence probe skipped.",
+                ),
             pruning = com.eltavine.duckdetector.features.tee.data.verification.keystore.OperationPruningResult(
                 suspicious = false,
                 operationsCreated = 0,

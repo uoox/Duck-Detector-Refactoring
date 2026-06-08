@@ -889,6 +889,7 @@ private fun buildTeeContribution(
         status = teeUiState.cardModel.status,
         headline = teeUiState.cardModel.verdict,
         summary = teeUiState.cardModel.summary,
+        findingDetail = teeUiState.cardModel.findingDetail,
         ready = teeUiState.stage != TeeUiStage.LOADING,
     )
 }

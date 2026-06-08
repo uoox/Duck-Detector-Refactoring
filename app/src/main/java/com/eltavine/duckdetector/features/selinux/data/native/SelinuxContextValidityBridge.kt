@@ -41,6 +41,7 @@ open class SelinuxContextValidityBridge {
         val notes = mutableListOf<String>()
         val dirtyPolicyNotes = mutableListOf<String>()
         val javaDirtyPolicyNotes = mutableListOf<String>()
+        val policyloadSeqnoNotes = mutableListOf<String>()
         val procAttrCurrentResults = mutableListOf<SelinuxProcAttrCurrentResult>()
 
         raw.lineSequence()
@@ -52,6 +53,9 @@ open class SelinuxContextValidityBridge {
                         .decodeValue()
 
                     line.startsWith("JAVA_DIRTY_POLICY_NOTE=") -> javaDirtyPolicyNotes += line.removePrefix("JAVA_DIRTY_POLICY_NOTE=")
+                        .decodeValue()
+
+                    line.startsWith("POLICYLOAD_SEQNO_NOTE=") -> policyloadSeqnoNotes += line.removePrefix("POLICYLOAD_SEQNO_NOTE=")
                         .decodeValue()
 
                     line.startsWith("NOTE=") -> notes += line.removePrefix("NOTE=")
@@ -73,6 +77,7 @@ open class SelinuxContextValidityBridge {
         return snapshot.copy(
             dirtyPolicyNotes = dirtyPolicyNotes,
             javaDirtyPolicyNotes = javaDirtyPolicyNotes,
+            policyloadSeqnoNotes = policyloadSeqnoNotes,
             procAttrCurrentResults = procAttrCurrentResults,
             notes = notes,
         )
@@ -118,6 +123,9 @@ open class SelinuxContextValidityBridge {
             "DIRTY_POLICY_MAGISK_BINDER_CALL_ALLOWED" -> copy(dirtyPolicyMagiskBinderCallAllowed = value.asNullableBool())
             "DIRTY_POLICY_KSU_FILE_READ_ALLOWED" -> copy(dirtyPolicyKsuFileReadAllowed = value.asNullableBool())
             "DIRTY_POLICY_LSPOSED_FILE_READ_ALLOWED" -> copy(dirtyPolicyLsposedFileReadAllowed = value.asNullableBool())
+            "DIRTY_POLICY_MAGISK_DROIDSPACESD_TRANSITION_ALLOWED" -> copy(dirtyPolicyMagiskDroidspacesdTransitionAllowed = value.asNullableBool())
+            "DIRTY_POLICY_SU_DROIDSPACESD_TRANSITION_ALLOWED" -> copy(dirtyPolicySuDroidspacesdTransitionAllowed = value.asNullableBool())
+            "DIRTY_POLICY_SYSTEM_SERVER_DROIDSPACESD_BINDER_CALL_ALLOWED" -> copy(dirtyPolicySystemServerDroidspacesdBinderCallAllowed = value.asNullableBool())
             "DIRTY_POLICY_MSD_APP_DAEMON_CONNECT_ALLOWED" -> copy(dirtyPolicyMsdAppDaemonConnectAllowed = value.asNullableBool())
             "DIRTY_POLICY_MSD_DAEMON_SELF_CONNECT_ALLOWED" -> copy(dirtyPolicyMsdDaemonSelfConnectAllowed = value.asNullableBool())
             "DIRTY_POLICY_MSD_DAEMON_SELINUXFS_READ_ALLOWED" -> copy(dirtyPolicyMsdDaemonSelinuxfsReadAllowed = value.asNullableBool())
@@ -142,6 +150,9 @@ open class SelinuxContextValidityBridge {
             "JAVA_DIRTY_POLICY_MAGISK_BINDER_CALL_ALLOWED" -> copy(javaDirtyPolicyMagiskBinderCallAllowed = value.asNullableBool())
             "JAVA_DIRTY_POLICY_KSU_FILE_READ_ALLOWED" -> copy(javaDirtyPolicyKsuFileReadAllowed = value.asNullableBool())
             "JAVA_DIRTY_POLICY_LSPOSED_FILE_READ_ALLOWED" -> copy(javaDirtyPolicyLsposedFileReadAllowed = value.asNullableBool())
+            "JAVA_DIRTY_POLICY_MAGISK_DROIDSPACESD_TRANSITION_ALLOWED" -> copy(javaDirtyPolicyMagiskDroidspacesdTransitionAllowed = value.asNullableBool())
+            "JAVA_DIRTY_POLICY_SU_DROIDSPACESD_TRANSITION_ALLOWED" -> copy(javaDirtyPolicySuDroidspacesdTransitionAllowed = value.asNullableBool())
+            "JAVA_DIRTY_POLICY_SYSTEM_SERVER_DROIDSPACESD_BINDER_CALL_ALLOWED" -> copy(javaDirtyPolicySystemServerDroidspacesdBinderCallAllowed = value.asNullableBool())
             "JAVA_DIRTY_POLICY_MSD_APP_DAEMON_CONNECT_ALLOWED" -> copy(javaDirtyPolicyMsdAppDaemonConnectAllowed = value.asNullableBool())
             "JAVA_DIRTY_POLICY_MSD_DAEMON_SELF_CONNECT_ALLOWED" -> copy(javaDirtyPolicyMsdDaemonSelfConnectAllowed = value.asNullableBool())
             "JAVA_DIRTY_POLICY_MSD_DAEMON_SELINUXFS_READ_ALLOWED" -> copy(javaDirtyPolicyMsdDaemonSelinuxfsReadAllowed = value.asNullableBool())
@@ -150,6 +161,15 @@ open class SelinuxContextValidityBridge {
             "JAVA_DIRTY_POLICY_XPOSED_DATA_FILE_READ_ALLOWED" -> copy(javaDirtyPolicyXposedDataFileReadAllowed = value.asNullableBool())
             "JAVA_DIRTY_POLICY_ZYGOTE_ADB_DATA_SEARCH_ALLOWED" -> copy(javaDirtyPolicyZygoteAdbDataSearchAllowed = value.asNullableBool())
             "JAVA_DIRTY_POLICY_FAILURE_REASON" -> copy(javaDirtyPolicyFailureReason = value.decodeValue())
+            "POLICYLOAD_SEQNO_AVAILABLE" -> copy(policyloadSeqnoAvailable = value.asBool())
+            "POLICYLOAD_SEQNO_PROBE_ATTEMPTED" -> copy(policyloadSeqnoProbeAttempted = value.asBool())
+            "POLICYLOAD_SEQNO_STATE" -> copy(policyloadSeqnoState = value.decodeValue())
+            "POLICYLOAD_SEQNO_CARRIER_CONTEXT" -> copy(policyloadSeqnoCarrierContext = value.decodeValue())
+            "POLICYLOAD_SEQNO_STATUS_SEQUENCE" -> copy(policyloadSeqnoStatusSequence = value.toLongOrNull())
+            "POLICYLOAD_SEQNO_STATUS_POLICYLOAD" -> copy(policyloadSeqnoStatusPolicyload = value.toLongOrNull())
+            "POLICYLOAD_SEQNO_ACCESS_SEQNO" -> copy(policyloadSeqnoAccessSeqno = value.toLongOrNull())
+            "POLICYLOAD_SEQNO_PROCESS_CLASS" -> copy(policyloadSeqnoProcessClass = value.toIntOrNull())
+            "POLICYLOAD_SEQNO_FAILURE_REASON" -> copy(policyloadSeqnoFailureReason = value.decodeValue())
             "PROC_ATTR_CURRENT_PROBE_ATTEMPTED" -> copy(procAttrCurrentProbeAttempted = value.asBool())
             "PROC_ATTR_CURRENT_FAILURE_REASON" -> copy(procAttrCurrentFailureReason = value.decodeValue())
             "FAILURE_REASON" -> copy(failureReason = value.decodeValue())

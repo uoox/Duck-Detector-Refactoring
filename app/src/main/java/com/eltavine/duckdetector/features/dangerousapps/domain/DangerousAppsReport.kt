@@ -43,6 +43,7 @@ enum class DangerousDetectionMethodKind(
     SCENE_LOOPBACK("Scene loopback"),
     THANOX_IPC("IPC Probe (DROPBOX_SERVICE)"),
     ACCESSIBILITY_SERVICE("Accessibility Service"),
+    SCENE_BROADCAST("Scene broadcast"),
 }
 
 data class DangerousAppTarget(
@@ -70,6 +71,7 @@ data class DangerousAppsReport(
     val packageVisibility: DangerousPackageVisibility,
     val packageManagerVisibleCount: Int,
     val suspiciousLowPmInventory: Boolean,
+    val suspiciousSharedStorageDenied: Boolean,
     val targets: List<DangerousAppTarget>,
     val findings: List<DangerousAppFinding>,
     val hiddenFromPackageManager: List<DangerousAppFinding>,
@@ -89,6 +91,7 @@ data class DangerousAppsReport(
                 packageVisibility = DangerousPackageVisibility.UNKNOWN,
                 packageManagerVisibleCount = 0,
                 suspiciousLowPmInventory = false,
+                suspiciousSharedStorageDenied = false,
                 targets = targets,
                 findings = emptyList(),
                 hiddenFromPackageManager = emptyList(),
@@ -105,6 +108,7 @@ data class DangerousAppsReport(
                 packageVisibility = DangerousPackageVisibility.UNKNOWN,
                 packageManagerVisibleCount = 0,
                 suspiciousLowPmInventory = false,
+                suspiciousSharedStorageDenied = false,
                 targets = targets,
                 findings = emptyList(),
                 hiddenFromPackageManager = emptyList(),
